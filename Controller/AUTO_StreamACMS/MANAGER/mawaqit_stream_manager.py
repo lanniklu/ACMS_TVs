@@ -1133,7 +1133,7 @@ class MultiDeviceController:
                             }
                 
                 elif event_type == "tarawih":
-                    # Tarawih: de isha_time à isha_time + 123 min
+                    # Tarawih: de isha_time à isha_time + 125 min
                     start_str = event.get("onvif_start")
                     end_str = event.get("onvif_end")
                     if start_str and end_str:
