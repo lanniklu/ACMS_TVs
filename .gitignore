@@ -17,6 +17,12 @@ Controller/FINAL_dev/AUTO_StreamACMS/logs/mawaqit_heartbeat.txt
 # Schedules (generated at runtime, kept by cache feature)
 # Do NOT ignore prayer_times_*.json and ptz_schedule_*.json - they are the offline cache
 
+# Large binaries (ROMs, backups, APKs) - trop lourds pour GitHub (>100MB)
+*.img
+*.ab
+Controller/platform-tools/rom_mawaqit/
+Controller/apks/*.apk
+
 # OS
 .DS_Store
 Thumbs.db
