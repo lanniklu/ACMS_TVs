@@ -1,0 +1,84 @@
+{
+  "date": "2026-02-13",
+  "events": [
+    {
+      "type": "jumua_pre",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "12:30",
+      "position": 5,
+      "time": "12:20",
+      "description": "Jumuaa Pre (position 5) at 12:30"
+    },
+    {
+      "type": "jumua_khotba",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "12:30",
+      "position": 1,
+      "time": "12:30",
+      "description": "Jumuaa Khotba (position 1) at 12:30"
+    },
+    {
+      "type": "jumua_position3",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "12:30",
+      "position": 3,
+      "time": "13:20",
+      "description": "Jumuaa Large View (position 3) at +50min"
+    },
+    {
+      "type": "jumua_pre",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "13:45",
+      "position": 5,
+      "time": "13:35",
+      "description": "Jumuaa Pre (position 5) at 13:45"
+    },
+    {
+      "type": "jumua_khotba",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "13:45",
+      "position": 1,
+      "time": "13:45",
+      "description": "Jumuaa Khotba (position 1) at 13:45"
+    },
+    {
+      "type": "jumua_position3",
+      "prayer": "jumua",
+      "prayer_name": "Jumuaa",
+      "jumua_time": "13:45",
+      "position": 3,
+      "time": "14:35",
+      "description": "Jumuaa Large View (position 3) at +50min"
+    },
+    {
+      "type": "iqama",
+      "prayer": "asr",
+      "prayer_name": "Asr",
+      "iqama_time": "15:49",
+      "position": 2,
+      "description": "Asr (position 2)"
+    },
+    {
+      "type": "iqama",
+      "prayer": "maghrib",
+      "prayer_name": "Maghrib",
+      "iqama_time": "18:20",
+      "position": 2,
+      "description": "Maghrib (position 2)"
+    },
+    {
+      "type": "iqama",
+      "prayer": "isha",
+      "prayer_name": "Isha",
+      "iqama_time": "19:32",
+      "position": 2,
+      "description": "Isha (position 2)"
+    }
+  ],
+  "created_at": "2026-02-13T14:04:43.266484"
+}
