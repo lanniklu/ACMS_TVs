@@ -243,7 +243,7 @@ class PTZScheduler:
             if isha_time:
                 # Correct API timestamps (API returns 10 min ahead)
                 isha_time = self._add_minutes(isha_time, -10)
-                tarawih_end = self._add_minutes(isha_time, 150)  # Isha + 2h30 (150 min)
+                tarawih_end = self._add_minutes(isha_time, 123)  # Isha + 2h03 (123 min)
                 events.append({
                     "type": "tarawih",
                     "prayer": "tarawih",
