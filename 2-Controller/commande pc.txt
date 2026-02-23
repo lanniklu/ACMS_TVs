@@ -1,0 +1,1 @@
+"C:\Program Files\VideoLAN\VLC\vlc.exe" screen:// --screen-fps=10 --sout "#transcode{vcodec=h264,vb=800,acodec=none}:http{mux=ts,dst=:8080/stream}" --sout-keep
