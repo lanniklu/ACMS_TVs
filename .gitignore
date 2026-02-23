@@ -1,18 +1,34 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# Logs
-**/logs/**
-!**/logs/.gitkeep
+# Logs (runtime, not source)
+Controller/FINAL_dev/AUTO_StreamACMS/logs/*.log
+Controller/FINAL_dev/AUTO_StreamACMS/logs/*.pid
+Controller/FINAL_dev/AUTO_StreamACMS/logs/mawaqit_heartbeat.txt
 
-# Binaries and backups
-*.apk
-*.ab
-*.img
-*.exe
-*.dll
-*.pid
+# Schedules (generated at runtime, kept by cache feature)
+# Do NOT ignore prayer_times_*.json and ptz_schedule_*.json - they are the offline cache
 
-# Android platform tools
-**/platform-tools/**
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+*.swp
+*.swo
+*~
+
+# SSH / secrets
+*.pem
+*.key
+id_rsa
