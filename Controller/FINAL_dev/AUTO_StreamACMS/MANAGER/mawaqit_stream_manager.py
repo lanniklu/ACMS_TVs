@@ -746,12 +746,12 @@ class StreamManager:
                 foreground_app = self._get_foreground_app(device)
 
                 if foreground_app and expected_package in foreground_app:
-                    logging.debug(f"✓ Verified {expected_package} on {device.name}")
+                    logging.debug(f"Verified {expected_package} on {device.name}")
                     return True
 
                 logging.debug(f"Attempt {attempt + 1}/{max_retries}: {device.name} foreground={foreground_app}")
 
-            logging.warning(f"✗ Failed to verify {expected_package} on {device.name}")
+            logging.warning(f"Failed to verify {expected_package} on {device.name}")
             return False
         except Exception as e:
             logging.error(f"Error verifying app on {device.name}: {e}")
@@ -943,13 +943,13 @@ class MultiDeviceController:
                 
                 # Test connexion caméra
                 if self.ptz_controller.get_device_info():
-                    logging.info("[PTZ] ✓ Caméra IMAM connectée (10.1.5.20)")
+                    logging.info("[PTZ] Camera IMAM connectee (10.1.5.20)")
                     # Mise à jour du planning au démarrage
                     self.ptz_scheduler.update_daily_schedule()
                     self.last_ptz_schedule_update = time.time()
                     self.ptz_last_schedule_date = datetime.now().strftime("%Y-%m-%d")
                 else:
-                    logging.error("[PTZ] ✗ Caméra IMAM non accessible")
+                    logging.error("[PTZ] Camera IMAM non accessible")
             except Exception as e:
                 logging.error(f"[PTZ] Erreur initialisation: {e}")
 
@@ -1051,7 +1051,7 @@ class MultiDeviceController:
 
         # Unblock streams when HTTP becomes available
         if not prev_http and self.http_available:
-            logging.info("💡 HTTP stream became available - unblocking")
+            logging.info("HTTP stream became available - unblocking")
             for device in self.devices:
                 self.stream_manager._unblock_stream(device, f"HTTP:http://{PC_IP}:{PC_HTTP_PORT}{PC_HTTP_PATH}")
             for device in self.devices:
@@ -1183,7 +1183,7 @@ class MultiDeviceController:
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
                 
                 if prayer_type in prayer_types_with_onvif:
-                    logging.info(f"📹 Prayer detected ({prayer_type}): {description} → ONVIF on {device.name}")
+                    logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
                     return self.stream_manager.play_onvif(device)
 
             # ====== RULE 3: FALLBACK to MAWAQIT ======
@@ -1272,9 +1272,9 @@ class MultiDeviceController:
                     foreground_app = self.stream_manager._get_foreground_app(device)
 
                     if foreground_app and expected_package in foreground_app:
-                        logging.info(f"✓ {device.name}: {expected_package} verified")
+                        logging.info(f"{device.name}: {expected_package} verified")
                     else:
-                        logging.warning(f"✗ {device.name}: Expected {expected_package}, got {foreground_app}")
+                        logging.warning(f"{device.name}: Expected {expected_package}, got {foreground_app}")
 
                         # Retry expected app launch a few times without reboot
                         max_retries = 5
@@ -1295,7 +1295,7 @@ class MultiDeviceController:
                             time.sleep(10)
                             foreground_app = self.stream_manager._get_foreground_app(device)
                             if foreground_app and expected_package in foreground_app:
-                                logging.info(f"✓ {device.name}: {expected_package} verified after retry")
+                                logging.info(f"{device.name}: {expected_package} verified after retry")
                                 break
                         continue
 
@@ -1334,8 +1334,8 @@ class MultiDeviceController:
     def print_status(self):
         """Display system status"""
         logging.info("-" * 70)
-        http_status = "✓ OK" if self.http_available else "✗ KO"
-        onvif_status = "✓ OK" if self.onvif_available else "✗ KO"
+        http_status = "OK" if self.http_available else "KO"
+        onvif_status = "OK" if self.onvif_available else "KO"
         logging.info(f"SOURCES: HTTP={http_status} | ONVIF={onvif_status}")
 
         # Display each device state

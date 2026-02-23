@@ -45,7 +45,7 @@ class MawaqitParser:
             path = self._cache_file_path(today)
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(cache_payload, f, indent=2, ensure_ascii=False)
-            logging.info(f"[MAWAQIT] ✓ Prayer times cached: {path}")
+            logging.info(f"[MAWAQIT] Prayer times cached: {path}")
         except Exception as e:
             logging.warning(f"[MAWAQIT] Could not write cache: {e}")
 

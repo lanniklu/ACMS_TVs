@@ -47,7 +47,7 @@ class PTZScheduler:
             if existing:
                 self.current_schedule = existing
                 self.last_update = datetime.now()
-                logging.info(f"[SCHEDULER] 📂 Loaded schedule from file ({today}, {len(existing.get('events', []))} events)")
+                logging.info(f"[SCHEDULER] Loaded schedule from file ({today}, {len(existing.get('events', []))} events)")
                 # Still try to refresh from internet in background (don't block)
                 prayer_times = self.parser.fetch_prayer_times()
                 if prayer_times:
@@ -55,7 +55,7 @@ class PTZScheduler:
                     self.current_schedule = schedule
                     self.last_update = datetime.now()
                     self._save_schedule(schedule)
-                    logging.info(f"[SCHEDULER] ✓ Schedule refreshed from internet ({len(schedule.get('events', []))} events)")
+                    logging.info(f"[SCHEDULER] Schedule refreshed from internet ({len(schedule.get('events', []))} events)")
                 else:
                     logging.info("[SCHEDULER] Internet unavailable - using cached schedule")
                 return True
@@ -117,7 +117,7 @@ class PTZScheduler:
         is_ramadan = prayer_times.get("ramadan", False)
         hijra_date = prayer_times.get("hijra_date", "")
         if is_ramadan:
-            logging.info(f"[SCHEDULER] 🌙 Ramadan schedule: {hijra_date}")
+            logging.info(f"[SCHEDULER] Ramadan schedule: {hijra_date}")
         
         # Regular prayers (not Friday)
         if datetime.now().weekday() != 4:  # Not Friday
@@ -325,13 +325,13 @@ class PTZScheduler:
             if os.path.exists(self.schedule_file):
                 with open(self.schedule_file, "r", encoding="utf-8") as f:
                     self.current_schedule = json.load(f)
-                logger.info("✓ Planning chargé depuis fichier")
+                logger.info("Planning chargé depuis fichier")
                 if self.is_ramadan():
-                    logger.info(f"🌙 Ramadan: {self.current_schedule.get('hijra_date')}")
+                    logger.info(f"Ramadan: {self.current_schedule.get('hijra_date')}")
             else:
-                logger.warning("⚠ Aucun planning trouvé, première mise à jour nécessaire")
+                logger.warning("Aucun planning trouvé, première mise à jour nécessaire")
         except Exception as e:
-            logger.error(f"✗ Erreur chargement planning: {e}")
+            logger.error(f"Erreur chargement planning: {e}")
 
     def _event_time_to_dt(self, event, today):
         time_str = event.get("time", event.get("iqama_time"))
