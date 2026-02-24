@@ -136,8 +136,6 @@ class PTZScheduler:
                     
                 time_str = self._extract_time(prayer_times.get(prayer_key))
                 if time_str:
-                    # Correct API timestamps (API returns 10 min ahead)
-                    time_str = self._add_minutes(time_str, -10)
                     iqama_time = self._add_minutes(time_str, self.config.get("iqama_offset", 10))
                     
                     # RAMADAN: Add Tahajuud event for Fajr (1 hour before)
@@ -225,8 +223,6 @@ class PTZScheduler:
             for prayer_key, (prayer_name, position) in other_prayers.items():
                 time_str = self._extract_time(prayer_times.get(prayer_key))
                 if time_str:
-                    # Correct API timestamps (API returns 10 min ahead)
-                    time_str = self._add_minutes(time_str, -10)
                     iqama_time = self._add_minutes(time_str, self.config.get("iqama_offset", 10))
                     events.append({
                         "type": "iqama",
@@ -241,8 +237,6 @@ class PTZScheduler:
         if is_ramadan and not (datetime.now().weekday() == 4):  # Not on Friday
             isha_time = self._extract_time(prayer_times.get("isha"))
             if isha_time:
-                # Correct API timestamps (API returns 10 min ahead)
-                isha_time = self._add_minutes(isha_time, -10)
                 tarawih_end = self._add_minutes(isha_time, 125)  # Isha + 2h05 (125 min)
                 events.append({
                     "type": "tarawih",
