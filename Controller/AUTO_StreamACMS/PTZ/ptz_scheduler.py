@@ -136,7 +136,12 @@ class PTZScheduler:
                     
                 time_str = self._extract_time(prayer_times.get(prayer_key))
                 if time_str:
-                    iqama_time = self._add_minutes(time_str, self.config.get("iqama_offset", 10))
+                    # Maghrib during Ramadan: 2 min after Adhan ; all other cases: 10 min
+                    if is_ramadan and prayer_key == "maghrib":
+                        offset = self.config.get("ramadan_maghrib_offset", 2)
+                    else:
+                        offset = self.config.get("iqama_offset", 10)
+                    iqama_time = self._add_minutes(time_str, offset)
                     
                     # RAMADAN: Add Tahajuud event for Fajr (1 hour before)
                     if is_ramadan and prayer_key == "fajr":
@@ -223,7 +228,12 @@ class PTZScheduler:
             for prayer_key, (prayer_name, position) in other_prayers.items():
                 time_str = self._extract_time(prayer_times.get(prayer_key))
                 if time_str:
-                    iqama_time = self._add_minutes(time_str, self.config.get("iqama_offset", 10))
+                    # Maghrib during Ramadan: 2 min after Adhan ; all other cases: 10 min
+                    if is_ramadan and prayer_key == "maghrib":
+                        offset = self.config.get("ramadan_maghrib_offset", 2)
+                    else:
+                        offset = self.config.get("iqama_offset", 10)
+                    iqama_time = self._add_minutes(time_str, offset)
                     events.append({
                         "type": "iqama",
                         "prayer": prayer_key,
