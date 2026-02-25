@@ -97,10 +97,10 @@ ONVIF_TAP_DELAY = 3       # Delay before tap on Onvif app
 PRAYER_DURATION = 10      # Duration of prayers in minutes
 
 # Post-prayer video parameters
-POST_PRAYER_VIDEO_DELAY_MIN = 1    # Attente (min) après fin du salat avant de lancer la vidéo
-POST_PRAYER_VIDEO_DURATION_MIN = 5  # Durée de lecture vidéo post-salat (minutes)
-POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Chemin vidéo sur les boxes (destination)
-POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "V02252.mp4")  # Chemin local sur la RPI
+POST_PRAYER_VIDEO_DELAY_MIN = 1    # Delay (min) after prayer ends before launching video
+POST_PRAYER_VIDEO_DURATION_MIN = 5  # Post-prayer video playback duration (minutes)
+POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Video path on the boxes (destination)
+POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "V02252.mp4")  # Local path on the RPI
 
 # VLC cache
 VLC_CACHE_MS = 300        # VLC network cache in milliseconds
@@ -552,7 +552,7 @@ class ADBManager:
                 if not self.connect_device(device):
                     return False
 
-            logging.info(f"Pushing {local_path} → {device.name}:{remote_path}")
+            logging.info(f"Pushing {local_path} to {device.name}:{remote_path}")
             result = subprocess.run(
                 ["adb", "-s", device.address, "push", local_path, remote_path],
                 stdout=subprocess.PIPE,
@@ -750,21 +750,21 @@ class StreamManager:
 
     def _wake_screen_if_needed(self, device: DeviceConfig) -> None:
         """
-        Vérifie si l'écran de la box est allumé.
-        Si éteint, envoie KEYCODE_WAKEUP (keyevent 224) pour le rallumer.
-        Cela évite les écrans noirs quand l'app est bien en foreground
-        mais que la box est passée en veille.
+        Check if the box screen is on.
+        If off, send KEYCODE_WAKEUP (keyevent 224) to wake it up.
+        This prevents black screens when the app is in foreground
+        but the box has gone to sleep.
         """
         try:
             success, output = self.adb.execute_command(device, ["dumpsys", "power"])
             if success and output:
-                # Cherche la ligne Display Power: state=ON ou state=OFF
+                # Find Display Power: state=ON or state=OFF line
                 for line in output.split('\n'):
                     if 'Display Power' in line:
                         if 'state=ON' in line:
-                            return  # Ecran allumé, rien à faire
+                            return  # Screen is ON, nothing to do
                         elif 'state=OFF' in line or 'state=DOZE' in line:
-                            logging.info(f"{device.name}: ecran eteint — envoi WAKEUP")
+                            logging.info(f"{device.name}: screen OFF - sending WAKEUP")
                             self.adb.execute_command(device, ["input", "keyevent", "224"])
                         break
         except Exception as e:
@@ -940,27 +940,27 @@ class StreamManager:
             return False
 
     def play_post_prayer_video(self, device: DeviceConfig) -> bool:
-        """Lance la vidéo post-salat en boucle sur la box (VLC + repeat via prefs)"""
+        """Launch post-prayer video in loop on the box (VLC + repeat via prefs)"""
         try:
             if not self._can_switch(device, "POST_PRAYER_VIDEO"):
                 return False
 
             vlc_package = APP_VLC.split("/")[0]  # "org.videolan.vlc"
-            logging.info(f"-> Vidéo post-salat sur {device.name}: {POST_PRAYER_VIDEO_PATH}")
+            logging.info(f"-> Post-prayer video on {device.name}: {POST_PRAYER_VIDEO_PATH}")
             time.sleep(PRE_LAUNCH_DELAY)
 
-            # 0. Vérifier si la vidéo est présente sur la box, sinon l'injecter depuis la RPI
+            # 0. Check if video is present on the box, inject from RPI if missing
             ok, ls_out = self.adb.execute_command(device, ["ls", POST_PRAYER_VIDEO_PATH])
             if not ok or "No such file" in ls_out or ls_out.strip() == "":
-                logging.warning(f"Vidéo absente sur {device.name}, injection depuis la RPI...")
+                logging.warning(f"Video missing on {device.name}, injecting from RPI...")
                 pushed = self.adb.push_file(device, POST_PRAYER_VIDEO_LOCAL_PATH, POST_PRAYER_VIDEO_PATH)
                 if not pushed:
-                    logging.error(f"Impossible d'injecter la vidéo sur {device.name}, fallback Mawaqit")
+                    logging.error(f"Cannot inject video on {device.name}, falling back to Mawaqit")
                     return self.play_mawaqit(device)
             else:
-                logging.debug(f"Vidéo déjà présente sur {device.name}")
+                logging.debug(f"Video already present on {device.name}")
 
-            # 1. Activer repeat dans les prefs VLC (box rootée)
+            # 1. Enable repeat mode in VLC prefs (rooted box)
             prefs_path = "/data/data/org.videolan.vlc/shared_prefs/org.videolan.vlc_preferences.xml"
             sed_cmd = (
                 f"su 0 sed -i "
@@ -969,11 +969,11 @@ class StreamManager:
             )
             self.adb.execute_command(device, ["sh", "-c", sed_cmd])
 
-            # 2. Stopper VLC s'il tourne
+            # 2. Stop VLC if running
             self.adb.execute_command(device, ["am", "force-stop", vlc_package])
             time.sleep(1)
 
-            # 3. Lancer VLC avec la vidéo
+            # 3. Launch VLC with the video
             video_uri = f"file://{POST_PRAYER_VIDEO_PATH}"
             intent_cmd = (
                 f"am start -n {APP_VLC} -a android.intent.action.VIEW "
@@ -983,11 +983,11 @@ class StreamManager:
 
             if success:
                 self._update_state(device, "POST_PRAYER_VIDEO")
-                logging.info(f"+ Vidéo post-salat lancée sur {device.name}")
+                logging.info(f"+ Post-prayer video started on {device.name}")
                 time.sleep(POST_LAUNCH_DELAY)
                 return True
             else:
-                logging.error(f"- Vidéo post-salat échouée sur {device.name}: {out}")
+                logging.error(f"- Post-prayer video failed on {device.name}: {out}")
                 self._record_error(device)
                 return False
         except Exception as e:
@@ -1042,8 +1042,8 @@ class MultiDeviceController:
         self.ptz_parser = None
         self.ptz_scheduler = None
         self.last_ptz_schedule_update = 0  # Timestamp for last schedule update
-        self.ptz_check_interval = 60  # Vérifier PTZ chaque minute
-        self.ptz_update_interval = 3600  # Mettre à jour schedule chaque HEURE (au lieu de 24h)
+        self.ptz_check_interval = 60  # Check PTZ every minute
+        self.ptz_update_interval = 3600  # Update schedule every HOUR (instead of 24h)
         self.ptz_last_schedule_date = None  # Track the date of current schedule
     
         if PTZ_AVAILABLE:
@@ -1052,27 +1052,27 @@ class MultiDeviceController:
                 PTZ_CONFIG["schedules_dir"] = _SCHEDULES_DIR + "/"
                 PTZ_CONFIG["logs_dir"] = _LOGS_DIR + "/"
                 
-                logging.info("[PTZ] Initialisation du système PTZ...")
+                logging.info("[PTZ] Initializing PTZ system...")
                 self.ptz_controller = PTZController(PTZ_CONFIG)
                 self.ptz_parser = MawaqitParser(cache_dir=_SCHEDULES_DIR)
                 self.ptz_scheduler = PTZScheduler(self.ptz_controller, self.ptz_parser, PTZ_CONFIG)
                 
-                # Test connexion caméra
+                # Test camera connection
                 if self.ptz_controller.get_device_info():
-                    logging.info("[PTZ] Camera IMAM connectee (10.1.5.20)")
-                    # Mise à jour du planning au démarrage
+                    logging.info("[PTZ] Camera IMAM connected (10.1.5.20)")
+                    # Update schedule at startup
                     self.ptz_scheduler.update_daily_schedule()
                     self.last_ptz_schedule_update = time.time()
                     self.ptz_last_schedule_date = datetime.now().strftime("%Y-%m-%d")
                 else:
-                    logging.error("[PTZ] Camera IMAM non accessible")
+                    logging.error("[PTZ] Camera IMAM not reachable")
             except Exception as e:
-                logging.error(f"[PTZ] Erreur initialisation: {e}")
+                logging.error(f"[PTZ] Initialization error: {e}")
 
     def _check_and_update_ptz(self):
         """
-        Vérifie les événements PTZ et les exécute
-        À appeler régulièrement dans la boucle principale
+        Check PTZ events and execute them.
+        Call this regularly in the main loop.
         """
         if not self.ptz_scheduler or not self.ptz_controller:
             return
@@ -1081,29 +1081,29 @@ class MultiDeviceController:
             now = time.time()
             today = datetime.now().strftime("%Y-%m-%d")
             
-            # Mettre à jour si:
-            # 1. Le jour a changé (minuit)
-            # 2. Ou l'intervalle de 1h est dépassé
+            # Update if:
+            # 1. Day has changed (midnight)
+            # 2. Or the 1h update interval has elapsed
             should_update = False
             
             if self.ptz_last_schedule_date != today:
-                logging.info(f"[PTZ] Date changed ({self.ptz_last_schedule_date} → {today}), forcing schedule update")
+                logging.info(f"[PTZ] Date changed ({self.ptz_last_schedule_date} -> {today}), forcing schedule update")
                 should_update = True
             elif now - self.last_ptz_schedule_update > self.ptz_update_interval:
                 logging.debug(f"[PTZ] Update interval ({self.ptz_update_interval}s) elapsed, refreshing schedule")
                 should_update = True
             
             if should_update:
-                logging.info("[PTZ] Mise à jour du planning...")
+                logging.info("[PTZ] Updating schedule...")
                 if self.ptz_scheduler.update_daily_schedule():
                     self.last_ptz_schedule_update = now
                     self.ptz_last_schedule_date = today
             
-            # Vérifier et exécuter les événements chaque minute
+            # Check and execute events every minute
             self.ptz_scheduler.check_and_execute()
             
         except Exception as e:
-            logging.error(f"[PTZ] Erreur vérification: {e}")
+            logging.error(f"[PTZ] Check error: {e}")
 
     def initialize(self) -> bool:
         """Initialize the system"""
@@ -1180,14 +1180,14 @@ class MultiDeviceController:
 
     def get_prayer_info(self):
         """
-        Détecte si on est actuellement DANS une période de prière avec ONVIF
-        Retourne: {
+        Detect if we are currently IN a prayer period with ONVIF.
+        Returns: {
             "type": "tahajuud"|"fajr"|"iqama"|"jumuaa"|"tarawih"|None,
             "prayer": prayer_key,
             "description": description,
             "onvif_start": HH:MM,
             "onvif_end": HH:MM
-        } ou None si pas en période prière
+        } or None if not in a prayer period
         """
         if not self.ptz_scheduler or not self.ptz_scheduler.current_schedule:
             return None
@@ -1196,13 +1196,13 @@ class MultiDeviceController:
             now = datetime.now()
             today = now.strftime("%Y-%m-%d")
             
-            # Parcourt chaque événement du planning
+            # Iterate through each schedule event
             for event in self.ptz_scheduler.current_schedule.get("events", []):
                 event_type = event.get("type")
                 
-                # Support pour tous les types de prière
+                # Handle all prayer types
                 if event_type == "tahajuud":
-                    # Tahajuud: de onvif_start à onvif_end
+                    # Tahajuud: from onvif_start to onvif_end
                     start_str = event.get("onvif_start")
                     end_str = event.get("onvif_end")
                     if start_str and end_str:
@@ -1218,7 +1218,7 @@ class MultiDeviceController:
                             }
                 
                 elif event_type == "iqama":
-                    # Durée salat et délai vidéo stockés dans l'event par ptz_scheduler
+                    # Prayer duration and video delay stored in event by ptz_scheduler
                     onvif_duration = event.get("onvif_duration", 10)
                     post_delay = event.get("post_prayer_video_delay", POST_PRAYER_VIDEO_DELAY_MIN)
                     start_str = event.get("iqama_time")
@@ -1233,7 +1233,7 @@ class MultiDeviceController:
                                 "onvif_start": start_str,
                                 "onvif_end": end_dt.strftime("%H:%M")
                             }
-                        # Fenêtre vidéo post-salat: onvif_end + délai → onvif_end + délai + durée
+                        # Post-prayer video window: onvif_end + delay to onvif_end + delay + duration
                         video_start = end_dt + timedelta(minutes=post_delay)
                         video_end = video_start + timedelta(minutes=POST_PRAYER_VIDEO_DURATION_MIN)
                         if video_start <= now <= video_end:
@@ -1241,13 +1241,13 @@ class MultiDeviceController:
                             return {
                                 "type": "post_prayer_video",
                                 "prayer": prayer_key,
-                                "description": f"Vidéo post-{prayer_key} ({video_start.strftime('%H:%M')} → {video_end.strftime('%H:%M')})",
+                                "description": f"Video post-{prayer_key} ({video_start.strftime('%H:%M')} -> {video_end.strftime('%H:%M')})",
                                 "video_start": video_start.strftime("%H:%M"),
                                 "video_end": video_end.strftime("%H:%M")
                             }
                 
                 elif event_type in ["jumua_pre", "jumua_khotba", "jumua_position3"]:
-                    # Jumuaa: de -10min avant la première jusqu'à +60min après la deuxième
+                    # Jumuaa: from -10min before first to +60min after last
                     jumua_time_str = event.get("jumua_time")
                     if jumua_time_str:
                         jumua_dt = datetime.strptime(f"{today} {jumua_time_str}", "%Y-%m-%d %H:%M")
@@ -1263,7 +1263,7 @@ class MultiDeviceController:
                             }
                 
                 elif event_type == "tarawih":
-                    # Tarawih: de isha_time à isha_time + 125 min
+                    # Tarawih: from isha_time to isha_time + 125 min
                     start_str = event.get("onvif_start")
                     end_str = event.get("onvif_end")
                     if start_str and end_str:
@@ -1289,17 +1289,17 @@ class MultiDeviceController:
         Update device display based on source availability.
         
         Logic (NEW):
-        1. HTTP available? → Use HTTP (ABSOLUTE PRIORITY)
-        2. HTTP DOWN + In prayer time? → Use ONVIF if available
-        3. Fallback → Use MAWAQIT (always available)
+        1. HTTP available? -> Use HTTP (ABSOLUTE PRIORITY)
+        2. HTTP DOWN + In prayer time? -> Use ONVIF if available
+        3. Fallback -> Use MAWAQIT (always available)
         
         Prayer types that trigger ONVIF (if HTTP is down):
         - tahajuud, fajr, iqama (salat), jumuaa, tarawih
         """
         try:
-            # ====== RULE 1: HTTP PRIORITAIRE (ABSOLUTE) ======
+            # ====== RULE 1: HTTP FIRST (ABSOLUTE PRIORITY) ======
             if self.http_available:
-                logging.debug(f"HTTP available → streaming on {device.name}")
+                logging.debug(f"HTTP available -> streaming on {device.name}")
                 return self.stream_manager.play_http_vlc(device)
 
             # ====== RULE 2: HTTP DOWN, check for prayer + ONVIF ======
@@ -1309,7 +1309,7 @@ class MultiDeviceController:
                 prayer_type = prayer_info.get("type")
                 description = prayer_info.get("description", "")
                 
-                # Types de prière qui utilisent ONVIF
+                # Prayer types that use ONVIF
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
                 
                 if prayer_type in prayer_types_with_onvif:
@@ -1322,7 +1322,7 @@ class MultiDeviceController:
 
             # ====== RULE 3: FALLBACK to MAWAQIT ======
             if prayer_info:
-                logging.info(f"Prayer but ONVIF unavailable → Mawaqit on {device.name}")
+                logging.info(f"Prayer but ONVIF unavailable -> Mawaqit on {device.name}")
             return self.stream_manager.play_mawaqit(device)
 
         except Exception as e:
@@ -1405,7 +1405,7 @@ class MultiDeviceController:
                     expected_package = "org.videolan.vlc"
 
                 if expected_package:
-                    # Réveiller l'écran si en veille avant de vérifier
+                    # Wake screen if asleep before checking
                     self.stream_manager._wake_screen_if_needed(device)
 
                     foreground_app = self.stream_manager._get_foreground_app(device)
@@ -1530,7 +1530,7 @@ class MultiDeviceController:
                     self.verify_all_devices()
 
                     # ============================================================
-                    # CHECK & UPDATE PTZ CAMERA (Caméra IMAM)
+                    # CHECK & UPDATE PTZ CAMERA (IMAM Camera)
                     # ============================================================
                     self._check_and_update_ptz()
 

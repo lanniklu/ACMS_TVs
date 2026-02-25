@@ -156,16 +156,16 @@ class PTZScheduler:
                             "onvif_end": tahajuud_end,
                             "time": tahajuud_start,
                             "position": 2,
-                            "description": f"Tahajuud - Priere de nuit ({tahajuud_start} → {tahajuud_end})"
+                            "description": f"Tahajuud - Night prayer ({tahajuud_start} -> {tahajuud_end})"
                         })
                     
-                    # Durée salat et délai vidéo post-salat
+                    # Prayer duration and post-prayer video delay
                     if is_ramadan and prayer_key == "maghrib":
                         onvif_duration = self.config.get("ramadan_maghrib_duration", 8)
                         post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
                         onvif_duration = 10
-                        post_video_delay = 1  # 1 min d'attente par défaut
+                        post_video_delay = 1  # 1 min default delay
 
                     events.append({
                         "type": "iqama",
@@ -177,7 +177,7 @@ class PTZScheduler:
                         "onvif_end": self._add_minutes(iqama_time, onvif_duration),
                         "time": iqama_time,
                         "position": position,
-                        "description": f"{prayer_name} ({iqama_time} → {self._add_minutes(iqama_time, onvif_duration)})"
+                        "description": f"{prayer_name} ({iqama_time} -> {self._add_minutes(iqama_time, onvif_duration)})"
                     })
         
         # Friday (Jumuaa) - Special 3-phase handling
@@ -273,7 +273,7 @@ class PTZScheduler:
                     "onvif_end": tarawih_end,
                     "time": isha_time,
                     "position": 2,
-                    "description": f"Tarawih - Priere du soir ({isha_time} → {tarawih_end})"
+                    "description": f"Tarawih - Evening prayer ({isha_time} -> {tarawih_end})"
                 })
         
         # Sort by time
@@ -345,11 +345,11 @@ class PTZScheduler:
             if os.path.exists(self.schedule_file):
                 with open(self.schedule_file, "r", encoding="utf-8") as f:
                     self.current_schedule = json.load(f)
-                logger.info("Planning chargé depuis fichier")
+                logger.info("Schedule loaded from file")
                 if self.is_ramadan():
                     logger.info(f"Ramadan: {self.current_schedule.get('hijra_date')}")
             else:
-                logger.warning("Aucun planning trouvé, première mise à jour nécessaire")
+                logger.warning("No schedule found, first update required")
         except Exception as e:
             logger.error(f"Erreur chargement planning: {e}")
 
