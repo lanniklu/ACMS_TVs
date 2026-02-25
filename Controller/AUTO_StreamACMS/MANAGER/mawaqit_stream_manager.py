@@ -710,6 +710,28 @@ class StreamManager:
             state["blocked_stream"] = None
             state["verification_failures"] = 0
 
+    def _wake_screen_if_needed(self, device: DeviceConfig) -> None:
+        """
+        Vérifie si l'écran de la box est allumé.
+        Si éteint, envoie KEYCODE_WAKEUP (keyevent 224) pour le rallumer.
+        Cela évite les écrans noirs quand l'app est bien en foreground
+        mais que la box est passée en veille.
+        """
+        try:
+            success, output = self.adb.execute_command(device, ["dumpsys", "power"])
+            if success and output:
+                # Cherche la ligne Display Power: state=ON ou state=OFF
+                for line in output.split('\n'):
+                    if 'Display Power' in line:
+                        if 'state=ON' in line:
+                            return  # Ecran allumé, rien à faire
+                        elif 'state=OFF' in line or 'state=DOZE' in line:
+                            logging.info(f"{device.name}: ecran eteint — envoi WAKEUP")
+                            self.adb.execute_command(device, ["input", "keyevent", "224"])
+                        break
+        except Exception as e:
+            logging.debug(f"Error waking screen on {device.name}: {e}")
+
     def _get_foreground_app(self, device: DeviceConfig) -> Optional[str]:
         """Get the package name of the currently focused app"""
         try:
@@ -1269,6 +1291,9 @@ class MultiDeviceController:
                     expected_package = "net.biyee.onvifer"
 
                 if expected_package:
+                    # Réveiller l'écran si en veille avant de vérifier
+                    self.stream_manager._wake_screen_if_needed(device)
+
                     foreground_app = self.stream_manager._get_foreground_app(device)
 
                     if foreground_app and expected_package in foreground_app:
