@@ -99,7 +99,8 @@ PRAYER_DURATION = 10      # Duration of prayers in minutes
 # Post-prayer video parameters
 POST_PRAYER_VIDEO_DELAY_MIN = 1    # Attente (min) après fin du salat avant de lancer la vidéo
 POST_PRAYER_VIDEO_DURATION_MIN = 5  # Durée de lecture vidéo post-salat (minutes)
-POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Chemin vidéo sur les boxes
+POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Chemin vidéo sur les boxes (destination)
+POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "V02252.mp4")  # Chemin local sur la RPI
 
 # VLC cache
 VLC_CACHE_MS = 300        # VLC network cache in milliseconds
@@ -540,6 +541,38 @@ class ADBManager:
         except Exception as e:
             logging.error(f"Disconnection error: {e}")
 
+    def push_file(self, device: DeviceConfig, local_path: str, remote_path: str) -> bool:
+        """Push a local file to the device via adb push"""
+        try:
+            if not os.path.isfile(local_path):
+                logging.error(f"push_file: local file not found: {local_path}")
+                return False
+
+            if device.address not in self._connected_devices:
+                if not self.connect_device(device):
+                    return False
+
+            logging.info(f"Pushing {local_path} → {device.name}:{remote_path}")
+            result = subprocess.run(
+                ["adb", "-s", device.address, "push", local_path, remote_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=120  # 2 min max pour un gros fichier
+            )
+            output = (result.stdout + result.stderr).decode("utf-8", errors="replace").strip()
+            if result.returncode == 0:
+                logging.info(f"+ Push OK sur {device.name}: {output}")
+                return True
+            else:
+                logging.error(f"- Push failed sur {device.name}: {output}")
+                return False
+        except subprocess.TimeoutExpired:
+            logging.error(f"push_file timeout sur {device.name}")
+            return False
+        except Exception as e:
+            logging.error(f"push_file exception sur {device.name}: {e}", exc_info=True)
+            return False
+
 # ============================================================================
 # SOURCE VERIFICATION
 # ============================================================================
@@ -915,6 +948,17 @@ class StreamManager:
             vlc_package = APP_VLC.split("/")[0]  # "org.videolan.vlc"
             logging.info(f"-> Vidéo post-salat sur {device.name}: {POST_PRAYER_VIDEO_PATH}")
             time.sleep(PRE_LAUNCH_DELAY)
+
+            # 0. Vérifier si la vidéo est présente sur la box, sinon l'injecter depuis la RPI
+            ok, ls_out = self.adb.execute_command(device, ["ls", POST_PRAYER_VIDEO_PATH])
+            if not ok or "No such file" in ls_out or ls_out.strip() == "":
+                logging.warning(f"Vidéo absente sur {device.name}, injection depuis la RPI...")
+                pushed = self.adb.push_file(device, POST_PRAYER_VIDEO_LOCAL_PATH, POST_PRAYER_VIDEO_PATH)
+                if not pushed:
+                    logging.error(f"Impossible d'injecter la vidéo sur {device.name}, fallback Mawaqit")
+                    return self.play_mawaqit(device)
+            else:
+                logging.debug(f"Vidéo déjà présente sur {device.name}")
 
             # 1. Activer repeat dans les prefs VLC (box rootée)
             prefs_path = "/data/data/org.videolan.vlc/shared_prefs/org.videolan.vlc_preferences.xml"
