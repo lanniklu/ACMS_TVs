@@ -27,8 +27,10 @@ PTZ_CONFIG = {
     "logs_dir": "/home/acms_tech/AUTO_StreamACMS/logs/",
     
     # Prayer timing
-    "iqama_offset": 10,         # Minutes after Adhan before Onvif activates (all prayers, all year)
-    "ramadan_maghrib_offset": 2,  # Minutes after Adhan before Onvif activates (Maghrib only, Ramadan only)
+    "iqama_offset": 10,               # Minutes after Adhan before Onvif activates (all prayers, all year)
+    "ramadan_maghrib_offset": 2,        # Minutes after Adhan before Onvif activates (Maghrib only, Ramadan only)
+    "ramadan_maghrib_duration": 8,      # Duration (min) of Onvif during Maghrib Ramadan (shorter salat)
+    "ramadan_maghrib_video_delay": 0,   # Delay (min) before post-prayer video for Maghrib Ramadan (immediate)
     
     # Mawaqit API
     "mawaqit_mosque_id": "12345",  # Configure with actual mosque ID
