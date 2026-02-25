@@ -16,7 +16,7 @@ PTZ_CONFIG = {
         1: {"name": "Khotba", "description": "Imam podium/Sermon"},
         2: {"name": "Salat", "description": "Prayer"},
         3: {"name": "LARGE", "description": "Large"},
-        5: {"name": "Coference", "description": "Conférence"}
+        5: {"name": "Conference", "description": "Conference"}
     },
     
     # Default position

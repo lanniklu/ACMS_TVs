@@ -22,7 +22,7 @@ class MawaqitParser:
         """
         self.mosque_url = mosque_url
         self.prayer_times = {}
-        self.location_name = "Mosquée En-Nour - Sartrouville"
+        self.location_name = "Mosque En-Nour - Sartrouville"
         # Default cache dir next to this file
         if cache_dir is None:
             cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schedules")
@@ -67,7 +67,7 @@ class MawaqitParser:
             if not data:
                 logging.warning("[MAWAQIT] Cache file empty")
                 return None
-            logging.info(f"[MAWAQIT] 📂 Loaded prayer times from cache ({today})")
+            logging.info(f"[MAWAQIT] Loaded prayer times from cache ({today})")
             return data
         except Exception as e:
             logging.warning(f"[MAWAQIT] Could not read cache: {e}")
@@ -92,7 +92,7 @@ class MawaqitParser:
         cached = self._load_from_cache()
         if cached:
             self.prayer_times = cached
-            logging.info("[MAWAQIT] ✓ Operating from cached prayer times (offline mode)")
+            logging.info("[MAWAQIT] OK - Operating from cached prayer times (offline mode)")
             return self.prayer_times
 
         logging.error("[MAWAQIT] No cache available and website unreachable")
@@ -228,10 +228,10 @@ class MawaqitParser:
             self.prayer_times["hijra_date"] = hijra_date
             self.prayer_times["date"] = None  # Add date field
             
-            logging.info(f"[MAWAQIT] ✓ Prayer times scraped successfully from {self.location_name}")
+            logging.info(f"[MAWAQIT] OK - Prayer times scraped successfully from {self.location_name}")
             logging.info(f"[MAWAQIT] Timings: {prayer_times}")
             if ramadan:
-                logging.info(f"[MAWAQIT] 🌙 RAMADAN DETECTED: {hijra_date}")
+                logging.info(f"[MAWAQIT] RAMADAN DETECTED: {hijra_date}")
 
             # Persist to cache for offline fallback
             self._save_to_cache(self.prayer_times)
@@ -275,8 +275,8 @@ class MawaqitParser:
         Returns: (is_ramadan: bool, hijra_date: str)
         """
         try:
-            # Pattern: Look for "Ramadan XXXX" format
-            ramadan_pattern = r'([Rr]amadan|رمضان)\s+(\d{4})?'
+            # Pattern: Look for "Ramadan XXXX" format (Arabic: ramadan)
+            ramadan_pattern = r'([Rr]amadan)\s+(\d{4})?'
             match = re.search(ramadan_pattern, html_text)
             if match:
                 hijra_info = match.group(0).strip()
@@ -287,7 +287,7 @@ class MawaqitParser:
             conf_data = self._extract_conf_data(html_text)
             if conf_data:
                 hijra_date = conf_data.get("hijraDate", "")
-                if hijra_date and any(keyword in hijra_date.lower() for keyword in ["ramadan", "رمضان"]):
+                if hijra_date and any(keyword in hijra_date.lower() for keyword in ["ramadan"]):
                     logging.info(f"[MAWAQIT] Ramadan detected in confData: {hijra_date}")
                     return True, hijra_date
             
