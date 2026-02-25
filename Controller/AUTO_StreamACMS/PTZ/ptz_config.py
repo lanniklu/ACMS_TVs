@@ -9,7 +9,7 @@ PTZ_CONFIG = {
     "camera_ip": "10.1.5.20",
     "camera_port": 80,
     "camera_user": "admin",
-    "camera_password": "",  # Will be configured at runtime
+    "camera_password": "CAMERA_PASSWORD_REDACTED",  # Will be configured at runtime
     
     # Preset positions
     "positions": {
@@ -27,7 +27,8 @@ PTZ_CONFIG = {
     "logs_dir": "/home/acms_tech/AUTO_StreamACMS/logs/",
     
     # Prayer timing
-    "iqama_offset": 10,  # Minutes after Iqama to move to position
+    "iqama_offset": 10,         # Minutes after Adhan before Onvif activates (all prayers, all year)
+    "ramadan_maghrib_offset": 2,  # Minutes after Adhan before Onvif activates (Maghrib only, Ramadan only)
     
     # Mawaqit API
     "mawaqit_mosque_id": "12345",  # Configure with actual mosque ID
