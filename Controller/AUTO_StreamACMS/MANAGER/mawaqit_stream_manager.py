@@ -96,6 +96,11 @@ ONVIF_TAP_DELAY = 3       # Delay before tap on Onvif app
 # Prayer time parameters (for automatic camera switching during prayers)
 PRAYER_DURATION = 10      # Duration of prayers in minutes
 
+# Post-prayer video parameters
+POST_PRAYER_VIDEO_DELAY_MIN = 1    # Attente (min) après fin du salat avant de lancer la vidéo
+POST_PRAYER_VIDEO_DURATION_MIN = 5  # Durée de lecture vidéo post-salat (minutes)
+POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Chemin vidéo sur les boxes
+
 # VLC cache
 VLC_CACHE_MS = 300        # VLC network cache in milliseconds
 
@@ -901,6 +906,51 @@ class StreamManager:
             self._record_error(device)
             return False
 
+    def play_post_prayer_video(self, device: DeviceConfig) -> bool:
+        """Lance la vidéo post-salat en boucle sur la box (VLC + repeat via prefs)"""
+        try:
+            if not self._can_switch(device, "POST_PRAYER_VIDEO"):
+                return False
+
+            vlc_package = APP_VLC.split("/")[0]  # "org.videolan.vlc"
+            logging.info(f"-> Vidéo post-salat sur {device.name}: {POST_PRAYER_VIDEO_PATH}")
+            time.sleep(PRE_LAUNCH_DELAY)
+
+            # 1. Activer repeat dans les prefs VLC (box rootée)
+            prefs_path = "/data/data/org.videolan.vlc/shared_prefs/org.videolan.vlc_preferences.xml"
+            sed_cmd = (
+                f"su 0 sed -i "
+                f"'s|<int name=\"video_repeat_mode\" value=\"[0-9]*\" />|<int name=\"video_repeat_mode\" value=\"1\" />|' "
+                f"{prefs_path}"
+            )
+            self.adb.execute_command(device, ["sh", "-c", sed_cmd])
+
+            # 2. Stopper VLC s'il tourne
+            self.adb.execute_command(device, ["am", "force-stop", vlc_package])
+            time.sleep(1)
+
+            # 3. Lancer VLC avec la vidéo
+            video_uri = f"file://{POST_PRAYER_VIDEO_PATH}"
+            intent_cmd = (
+                f"am start -n {APP_VLC} -a android.intent.action.VIEW "
+                f"-t video/* -d '{video_uri}'"
+            )
+            success, out = self.adb.execute_command(device, ["sh", "-c", intent_cmd])
+
+            if success:
+                self._update_state(device, "POST_PRAYER_VIDEO")
+                logging.info(f"+ Vidéo post-salat lancée sur {device.name}")
+                time.sleep(POST_LAUNCH_DELAY)
+                return True
+            else:
+                logging.error(f"- Vidéo post-salat échouée sur {device.name}: {out}")
+                self._record_error(device)
+                return False
+        except Exception as e:
+            logging.error(f"Exception in play_post_prayer_video for {device.name}: {e}", exc_info=True)
+            self._record_error(device)
+            return False
+
     def _record_error(self, device: DeviceConfig):
         """Record error for device - helps track problematic boxes"""
         try:
@@ -1137,6 +1187,18 @@ class MultiDeviceController:
                                 "onvif_start": start_str,
                                 "onvif_end": end_dt.strftime("%H:%M")
                             }
+                        # Fenêtre vidéo post-salat: onvif_end + delay → onvif_end + delay + durée
+                        video_start = end_dt + timedelta(minutes=POST_PRAYER_VIDEO_DELAY_MIN)
+                        video_end = video_start + timedelta(minutes=POST_PRAYER_VIDEO_DURATION_MIN)
+                        if video_start <= now <= video_end:
+                            prayer_key = event.get("prayer", "salat")
+                            return {
+                                "type": "post_prayer_video",
+                                "prayer": prayer_key,
+                                "description": f"Vidéo post-{prayer_key} ({video_start.strftime('%H:%M')} → {video_end.strftime('%H:%M')})",
+                                "video_start": video_start.strftime("%H:%M"),
+                                "video_end": video_end.strftime("%H:%M")
+                            }
                 
                 elif event_type in ["jumua_pre", "jumua_khotba", "jumua_position3"]:
                     # Jumuaa: de -10min avant la première jusqu'à +60min après la deuxième
@@ -1207,6 +1269,10 @@ class MultiDeviceController:
                 if prayer_type in prayer_types_with_onvif:
                     logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
                     return self.stream_manager.play_onvif(device)
+
+                elif prayer_type == "post_prayer_video":
+                    logging.info(f"[VIDEO] Post-prayer video: {description} on {device.name}")
+                    return self.stream_manager.play_post_prayer_video(device)
 
             # ====== RULE 3: FALLBACK to MAWAQIT ======
             if prayer_info:
@@ -1289,6 +1355,8 @@ class MultiDeviceController:
                     expected_package = "org.videolan.vlc"
                 elif expected_stream.startswith("ONVIF:"):
                     expected_package = "net.biyee.onvifer"
+                elif expected_stream == "POST_PRAYER_VIDEO":
+                    expected_package = "org.videolan.vlc"
 
                 if expected_package:
                     # Réveiller l'écran si en veille avant de vérifier
@@ -1309,7 +1377,10 @@ class MultiDeviceController:
                             if expected_package == "com.mawaqit":
                                 self.stream_manager.play_mawaqit(device)
                             elif expected_package == "org.videolan.vlc":
-                                self.stream_manager.play_http_vlc(device)
+                                if expected_stream == "POST_PRAYER_VIDEO":
+                                    self.stream_manager.play_post_prayer_video(device)
+                                else:
+                                    self.stream_manager.play_http_vlc(device)
                             elif expected_package == "droidvnc_ng":
                                 self.stream_manager.play_vnc(device)
                             elif expected_package == "net.biyee.onvifer":
