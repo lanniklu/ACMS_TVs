@@ -159,15 +159,25 @@ class PTZScheduler:
                             "description": f"Tahajuud - Priere de nuit ({tahajuud_start} → {tahajuud_end})"
                         })
                     
+                    # Durée salat et délai vidéo post-salat
+                    if is_ramadan and prayer_key == "maghrib":
+                        onvif_duration = self.config.get("ramadan_maghrib_duration", 8)
+                        post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
+                    else:
+                        onvif_duration = 10
+                        post_video_delay = 1  # 1 min d'attente par défaut
+
                     events.append({
                         "type": "iqama",
                         "prayer": prayer_key,
                         "prayer_name": prayer_name,
                         "iqama_time": iqama_time,
-                        "onvif_end": self._add_minutes(iqama_time, 10),
+                        "onvif_duration": onvif_duration,
+                        "post_prayer_video_delay": post_video_delay,
+                        "onvif_end": self._add_minutes(iqama_time, onvif_duration),
                         "time": iqama_time,
                         "position": position,
-                        "description": f"{prayer_name} ({iqama_time} → {self._add_minutes(iqama_time, 10)})"
+                        "description": f"{prayer_name} ({iqama_time} → {self._add_minutes(iqama_time, onvif_duration)})"
                     })
         
         # Friday (Jumuaa) - Special 3-phase handling
@@ -231,14 +241,20 @@ class PTZScheduler:
                     # Maghrib during Ramadan: 2 min after Adhan ; all other cases: 10 min
                     if is_ramadan and prayer_key == "maghrib":
                         offset = self.config.get("ramadan_maghrib_offset", 2)
+                        onvif_duration = self.config.get("ramadan_maghrib_duration", 8)
+                        post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
                         offset = self.config.get("iqama_offset", 10)
+                        onvif_duration = 10
+                        post_video_delay = 1
                     iqama_time = self._add_minutes(time_str, offset)
                     events.append({
                         "type": "iqama",
                         "prayer": prayer_key,
                         "prayer_name": prayer_name,
                         "iqama_time": iqama_time,
+                        "onvif_duration": onvif_duration,
+                        "post_prayer_video_delay": post_video_delay,
                         "position": position,
                         "description": f"{prayer_name} (position {position})"
                     })

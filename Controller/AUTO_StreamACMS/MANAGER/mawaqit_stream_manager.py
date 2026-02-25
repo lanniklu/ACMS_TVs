@@ -1174,11 +1174,13 @@ class MultiDeviceController:
                             }
                 
                 elif event_type == "iqama":
-                    # Salat normal: de iqama_time à iqama_time + 10 min
+                    # Durée salat et délai vidéo stockés dans l'event par ptz_scheduler
+                    onvif_duration = event.get("onvif_duration", 10)
+                    post_delay = event.get("post_prayer_video_delay", POST_PRAYER_VIDEO_DELAY_MIN)
                     start_str = event.get("iqama_time")
                     if start_str:
                         start_dt = datetime.strptime(f"{today} {start_str}", "%Y-%m-%d %H:%M")
-                        end_dt = start_dt + timedelta(minutes=10)
+                        end_dt = start_dt + timedelta(minutes=onvif_duration)
                         if start_dt <= now <= end_dt:
                             return {
                                 "type": "iqama",
@@ -1187,8 +1189,8 @@ class MultiDeviceController:
                                 "onvif_start": start_str,
                                 "onvif_end": end_dt.strftime("%H:%M")
                             }
-                        # Fenêtre vidéo post-salat: onvif_end + delay → onvif_end + delay + durée
-                        video_start = end_dt + timedelta(minutes=POST_PRAYER_VIDEO_DELAY_MIN)
+                        # Fenêtre vidéo post-salat: onvif_end + délai → onvif_end + délai + durée
+                        video_start = end_dt + timedelta(minutes=post_delay)
                         video_end = video_start + timedelta(minutes=POST_PRAYER_VIDEO_DURATION_MIN)
                         if video_start <= now <= video_end:
                             prayer_key = event.get("prayer", "salat")
