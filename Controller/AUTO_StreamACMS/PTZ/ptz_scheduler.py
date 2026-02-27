@@ -122,7 +122,7 @@ class PTZScheduler:
         # Regular prayers (not Friday)
         if datetime.now().weekday() != 4:  # Not Friday
             regular_prayers = {
-                "fajr": ("Fajr", 2),      # Position 2 (Salat)
+                "fajr": ("Fajr", 2),      # Position 2
                 "dhuhr": ("Dhuhr", 2),
                 "asr": ("Asr", 2),
                 "maghrib": ("Maghrib", 2),
@@ -146,7 +146,7 @@ class PTZScheduler:
                     # RAMADAN: Add Tahajuud event for Fajr (1 hour before)
                     if is_ramadan and prayer_key == "fajr":
                         tahajuud_start = self._add_minutes(time_str, -60)  # Fajr - 60 min
-                        tahajuud_end = self._add_minutes(time_str, -10)    # Fajr - 10 min
+                        tahajuud_end = self._add_minutes(time_str, -20)    # Fajr - 20 min (40min window)
                         events.append({
                             "type": "tahajuud",
                             "prayer": "tahajuud",
@@ -161,7 +161,7 @@ class PTZScheduler:
                     
                     # Prayer duration and post-prayer video delay
                     if is_ramadan and prayer_key == "maghrib":
-                        onvif_duration = self.config.get("ramadan_maghrib_duration", 8)
+                        onvif_duration = self.config.get("ramadan_maghrib_duration", 7)
                         post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
                         onvif_duration = 10
@@ -180,51 +180,32 @@ class PTZScheduler:
                         "description": f"{prayer_name} ({iqama_time} -> {self._add_minutes(iqama_time, onvif_duration)})"
                     })
         
-        # Friday (Jumuaa) - Special 3-phase handling
+        # Friday (Jumuaa) - Single block from first Jumuaa T1-10min to last Jumuaa T2+50min
         if datetime.now().weekday() == 4:  # Friday
             jumua_data = self._extract_time(prayer_times.get("jumua"))
-            
+
             # Handle single or multiple Jumuaa times
             jumua_times = []
             if isinstance(jumua_data, list):
-                jumua_times = jumua_data  # Double Jumuaa: ["12:30", "13:45"]
+                jumua_times = sorted(jumua_data)  # Double Jumuaa: ["12:30", "13:45"]
             elif jumua_data:
                 jumua_times = [jumua_data]  # Single Jumuaa: "12:30"
-            
-            for jumua_time in jumua_times:
-                # Phase 1: Position 5 (Conference) - 10 minutes BEFORE Jumuaa
-                pre_jumua_time = self._add_minutes(jumua_time, -10)
-                events.append({
-                    "type": "jumua_pre",
-                    "prayer": "jumua",
-                    "prayer_name": "Jumuaa",
-                    "jumua_time": jumua_time,
-                    "position": 5,
-                    "time": pre_jumua_time,
-                    "description": f"Jumuaa Pre (position 5) at {jumua_time}"
-                })
-                
-                # Phase 2: Position 1 (Khotba) - at Jumuaa time
-                events.append({
-                    "type": "jumua_khotba",
-                    "prayer": "jumua",
-                    "prayer_name": "Jumuaa",
-                    "jumua_time": jumua_time,
-                    "position": 1,
-                    "time": jumua_time,
-                    "description": f"Jumuaa Khotba (position 1) at {jumua_time}"
-                })
 
-                # Phase 3: Position 3 (Large) - 50 minutes AFTER Jumuaa
-                large_view_time = self._add_minutes(jumua_time, 50)
+            if jumua_times:
+                first_jumua = jumua_times[0]
+                last_jumua = jumua_times[-1]
+                block_start = self._add_minutes(first_jumua, -10)  # T1 - 10 min
+                block_end = self._add_minutes(last_jumua, 60)       # T2 + 60 min
                 events.append({
-                    "type": "jumua_position3",
+                    "type": "jumuaa_block",
                     "prayer": "jumua",
                     "prayer_name": "Jumuaa",
-                    "jumua_time": jumua_time,
+                    "jumua_times": jumua_times,
+                    "start_time": block_start,
+                    "end_time": block_end,
+                    "time": block_start,
                     "position": 3,
-                    "time": large_view_time,
-                    "description": f"Jumuaa Large View (position 3) at +50min"
+                    "description": f"Jumuaa pos3 ({block_start} -> {block_end})"
                 })
         
         # Other Friday prayers (Asr, Maghrib, Isha)
@@ -241,7 +222,7 @@ class PTZScheduler:
                     # Maghrib during Ramadan: 2 min after Adhan ; all other cases: 10 min
                     if is_ramadan and prayer_key == "maghrib":
                         offset = self.config.get("ramadan_maghrib_offset", 2)
-                        onvif_duration = self.config.get("ramadan_maghrib_duration", 8)
+                        onvif_duration = self.config.get("ramadan_maghrib_duration", 7)
                         post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
                         offset = self.config.get("iqama_offset", 10)
@@ -263,17 +244,18 @@ class PTZScheduler:
         if is_ramadan and not (datetime.now().weekday() == 4):  # Not on Friday
             isha_time = self._extract_time(prayer_times.get("isha"))
             if isha_time:
-                tarawih_end = self._add_minutes(isha_time, 125)  # Isha + 2h05 (125 min)
+                iqama_isha = self._add_minutes(isha_time, self.config.get("iqama_offset", 10))
+                tarawih_end = self._add_minutes(iqama_isha, 150)  # Iqama Isha + 150 min
                 events.append({
                     "type": "tarawih",
                     "prayer": "tarawih",
                     "prayer_name": "Tarawih",
                     "isha_time": isha_time,
-                    "onvif_start": isha_time,
+                    "onvif_start": iqama_isha,
                     "onvif_end": tarawih_end,
-                    "time": isha_time,
-                    "position": 2,
-                    "description": f"Tarawih - Evening prayer ({isha_time} -> {tarawih_end})"
+                    "time": iqama_isha,
+                    "position": 3,
+                    "description": f"Tarawih - Evening prayer ({iqama_isha} -> {tarawih_end})"
                 })
         
         # Sort by time
