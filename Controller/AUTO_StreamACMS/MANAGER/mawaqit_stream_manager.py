@@ -84,7 +84,7 @@ ONVIF_TAP_Y = 100
 
 # Timing parameters
 CHECK_INTERVAL = 5        # Seconds between source checks
-NETWORK_RESCAN_INTERVAL = 60  # Seconds between network rescans (to detect new boxes)
+NETWORK_RESCAN_INTERVAL = 300  # Seconds between network rescans (5 min)
 ANTI_FLAP_TIME = 10       # Minimum time before source change (prevents oscillations)
                           # Explanation: If a source becomes available then unavailable
                           # quickly, we wait ANTI_FLAP_TIME seconds before switching
@@ -99,8 +99,8 @@ PRAYER_DURATION = 10      # Duration of prayers in minutes
 # Post-prayer video parameters
 POST_PRAYER_VIDEO_DELAY_MIN = 1    # Delay (min) after prayer ends before launching video
 POST_PRAYER_VIDEO_DURATION_MIN = 5  # Post-prayer video playback duration (minutes)
-POST_PRAYER_VIDEO_PATH = "/sdcard/V02252.mp4"  # Video path on the boxes (destination)
-POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "V02252.mp4")  # Local path on the RPI
+POST_PRAYER_VIDEO_PATH = "/sdcard/video.mp4"  # Video path on the boxes (destination)
+# NOTE: POST_PRAYER_VIDEO_LOCAL_PATH is defined after _BASE_DIR below (DYNAMIC PATHS section)
 
 # VLC cache
 VLC_CACHE_MS = 300        # VLC network cache in milliseconds
@@ -119,6 +119,14 @@ _MANAGER_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_MANAGER_DIR)
 _LOGS_DIR = os.path.join(_BASE_DIR, "logs")
 _SCHEDULES_DIR = os.path.join(_BASE_DIR, "schedules")
+POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "video.mp4")  # Local path on the RPI
+
+# Play-order manual override (write '1' to trigger 30min video on all boxes)
+PLAY_ORDER_FILE = "/home/acms_tech/AUTO_StreamACMS/media/play_order.txt"
+PLAY_ORDER_VIDEO_DURATION_MIN = 30
+
+# Boxes permanently in video-loop mode (bypass routing in fallback only)
+VIDEO_LOOP_BOXES = ["10.1.2.104"]
 
 # Logging
 LOG_FILE = os.path.join(_LOGS_DIR, "mawaqit_stream.log")
@@ -942,6 +950,15 @@ class StreamManager:
     def play_post_prayer_video(self, device: DeviceConfig) -> bool:
         """Launch post-prayer video in loop on the box (VLC + repeat via prefs)"""
         try:
+            state = self._get_device_state(device)
+            # Reset state if VLC no longer in foreground (video ended naturally)
+            if state["current_stream"] == "POST_PRAYER_VIDEO":
+                foreground = self._get_foreground_app(device)
+                if foreground and "org.videolan.vlc" not in foreground:
+                    logging.info(f"[{device.name}] VLC no longer in foreground ({foreground}), resetting state")
+                    state["current_stream"] = ""
+                    state["last_switch_time"] = 0
+
             if not self._can_switch(device, "POST_PRAYER_VIDEO"):
                 return False
 
@@ -949,37 +966,49 @@ class StreamManager:
             logging.info(f"-> Post-prayer video on {device.name}: {POST_PRAYER_VIDEO_PATH}")
             time.sleep(PRE_LAUNCH_DELAY)
 
-            # 0. Check if video is present on the box, inject from RPI if missing
+            # 0. Check video version: push if missing or outdated vs RPI copy
+            need_push = False
             ok, ls_out = self.adb.execute_command(device, ["ls", POST_PRAYER_VIDEO_PATH])
             if not ok or "No such file" in ls_out or ls_out.strip() == "":
-                logging.warning(f"Video missing on {device.name}, injecting from RPI...")
+                logging.warning(f"Video missing on {device.name}, will push...")
+                need_push = True
+            elif os.path.isfile(POST_PRAYER_VIDEO_LOCAL_PATH):
+                local_mtime = int(os.path.getmtime(POST_PRAYER_VIDEO_LOCAL_PATH))
+                ok_stat, stat_out = self.adb.execute_command(device, [f"stat -c %Y {POST_PRAYER_VIDEO_PATH}"])
+                if ok_stat and stat_out.strip().isdigit():
+                    remote_mtime = int(stat_out.strip())
+                    if local_mtime > remote_mtime:
+                        logging.info(f"Video outdated on {device.name} (local:{local_mtime} > remote:{remote_mtime}), updating...")
+                        need_push = True
+                    else:
+                        logging.debug(f"Video up to date on {device.name}")
+                else:
+                    logging.debug(f"Cannot read remote mtime on {device.name}, keeping existing file")
+
+            if need_push:
                 pushed = self.adb.push_file(device, POST_PRAYER_VIDEO_LOCAL_PATH, POST_PRAYER_VIDEO_PATH)
                 if not pushed:
-                    logging.error(f"Cannot inject video on {device.name}, falling back to Mawaqit")
+                    logging.error(f"Cannot push video on {device.name}, falling back to Mawaqit")
                     return self.play_mawaqit(device)
-            else:
-                logging.debug(f"Video already present on {device.name}")
 
-            # 1. Enable repeat mode in VLC prefs (rooted box)
-            prefs_path = "/data/data/org.videolan.vlc/shared_prefs/org.videolan.vlc_preferences.xml"
-            sed_cmd = (
-                f"su 0 sed -i "
-                f"'s|<int name=\"video_repeat_mode\" value=\"[0-9]*\" />|<int name=\"video_repeat_mode\" value=\"1\" />|' "
-                f"{prefs_path}"
-            )
-            self.adb.execute_command(device, ["sh", "-c", sed_cmd])
-
-            # 2. Stop VLC if running
+            # 1. Stop VLC first (prefs must be written while VLC NOT running)
             self.adb.execute_command(device, ["am", "force-stop", vlc_package])
             time.sleep(1)
 
-            # 3. Launch VLC with the video
+            # 2. Enable repeat: delete existing entry + insert fresh before </map>
+            prefs_path = "/data/data/org.videolan.vlc/shared_prefs/org.videolan.vlc_preferences.xml"
+            self.adb.execute_command(device, [f"su 0 sed -i '/video_repeat_mode/d' {prefs_path}"])
+            insert_cmd = f"su 0 sed -i 's|</map>|    <int name=\"video_repeat_mode\" value=\"1\" />\\n</map>|' {prefs_path}"
+            rc_sed, out_sed = self.adb.execute_command(device, [insert_cmd])
+            logging.info(f"[{device.name}] VLC repeat_mode -> 1 : {out_sed or 'OK'}")
+
+            # 3. Launch VLC (single string — no sh -c wrapping)
             video_uri = f"file://{POST_PRAYER_VIDEO_PATH}"
             intent_cmd = (
                 f"am start -n {APP_VLC} -a android.intent.action.VIEW "
                 f"-t video/* -d '{video_uri}'"
             )
-            success, out = self.adb.execute_command(device, ["sh", "-c", intent_cmd])
+            success, out = self.adb.execute_command(device, [intent_cmd])
 
             if success:
                 self._update_state(device, "POST_PRAYER_VIDEO")
@@ -1034,6 +1063,8 @@ class MultiDeviceController:
 
         self._running = False
         self._box_115_initialized = False  # Track if .115 has been launched
+        self._play_order_active = False
+        self._play_order_start_time: Optional[float] = None
 
         # ============================================================
         # PTZ CAMERA INITIALIZATION
@@ -1056,16 +1087,28 @@ class MultiDeviceController:
                 self.ptz_controller = PTZController(PTZ_CONFIG)
                 self.ptz_parser = MawaqitParser(cache_dir=_SCHEDULES_DIR)
                 self.ptz_scheduler = PTZScheduler(self.ptz_controller, self.ptz_parser, PTZ_CONFIG)
-                
-                # Test camera connection
+
+                # Delete today's cached schedule to force fresh fetch from internet
+                import glob
+                stale_files = glob.glob(os.path.join(_SCHEDULES_DIR, "ptz_schedule_*.json"))
+                for f in stale_files:
+                    try:
+                        os.remove(f)
+                        logging.info(f"[PTZ] Deleted stale schedule cache: {os.path.basename(f)}")
+                    except Exception:
+                        pass
+
+                # Always update schedule at startup (prayer times don't need camera)
+                logging.info("[PTZ] Fetching prayer schedule...")
+                self.ptz_scheduler.update_daily_schedule()
+                self.last_ptz_schedule_update = time.time()
+                self.ptz_last_schedule_date = datetime.now().strftime("%Y-%m-%d")
+
+                # Test camera connection separately
                 if self.ptz_controller.get_device_info():
                     logging.info("[PTZ] Camera IMAM connected (10.1.5.20)")
-                    # Update schedule at startup
-                    self.ptz_scheduler.update_daily_schedule()
-                    self.last_ptz_schedule_update = time.time()
-                    self.ptz_last_schedule_date = datetime.now().strftime("%Y-%m-%d")
                 else:
-                    logging.error("[PTZ] Camera IMAM not reachable")
+                    logging.warning("[PTZ] Camera IMAM not reachable at startup - will retry")
             except Exception as e:
                 logging.error(f"[PTZ] Initialization error: {e}")
 
@@ -1105,6 +1148,36 @@ class MultiDeviceController:
         except Exception as e:
             logging.error(f"[PTZ] Check error: {e}")
 
+    def _check_and_update_play_order(self):
+        """Check play_order.txt trigger and manage 30-min video override on all boxes."""
+        try:
+            if self._play_order_active:
+                elapsed_min = (time.time() - self._play_order_start_time) / 60
+                if elapsed_min >= PLAY_ORDER_VIDEO_DURATION_MIN:
+                    logging.info("[PLAY_ORDER] 30 min elapsed — deactivating and writing 0")
+                    self._play_order_active = False
+                    self._play_order_start_time = None
+                    try:
+                        with open(PLAY_ORDER_FILE, 'w') as f:
+                            f.write('0\n')
+                        logging.info(f"[PLAY_ORDER] Written '0' to {PLAY_ORDER_FILE}")
+                    except Exception as e:
+                        logging.error(f"[PLAY_ORDER] Cannot write '0' to file: {e}")
+                else:
+                    remaining = PLAY_ORDER_VIDEO_DURATION_MIN - elapsed_min
+                    logging.debug(f"[PLAY_ORDER] Active: {elapsed_min:.1f}/{PLAY_ORDER_VIDEO_DURATION_MIN} min ({remaining:.1f} min left)")
+                return
+            if not os.path.exists(PLAY_ORDER_FILE):
+                return
+            with open(PLAY_ORDER_FILE, 'r') as f:
+                val = f.read().strip()
+            if val == '1':
+                logging.info(f"[PLAY_ORDER] Trigger detected — starting {PLAY_ORDER_VIDEO_DURATION_MIN} min video on all boxes")
+                self._play_order_active = True
+                self._play_order_start_time = time.time()
+        except Exception as e:
+            logging.error(f"[PLAY_ORDER] Error checking play_order file: {e}")
+
     def initialize(self) -> bool:
         """Initialize the system"""
         logging.info("=" * 70)
@@ -1116,9 +1189,16 @@ class MultiDeviceController:
             logging.error("Unable to start ADB server")
             return False
 
-        # AUTOMATIC DISCOVERY OF MAWAQIT BOXes
+        # AUTOMATIC DISCOVERY OF MAWAQIT BOXes (with retry if network not ready)
         logging.info("Automatic discovery of MAWAQIT BOXes on network...")
-        self.devices = NetworkScanner.discover_mawaqit_boxes()
+        max_init_retries = 5
+        for attempt in range(1, max_init_retries + 1):
+            self.devices = NetworkScanner.discover_mawaqit_boxes()
+            if self.devices:
+                break
+            if attempt < max_init_retries:
+                logging.warning(f"No boxes found (attempt {attempt}/{max_init_retries}), waiting 15s for network...")
+                time.sleep(15)
 
         if not self.devices:
             logging.error("No MAWAQIT BOX discovered on VLAN 2 network")
@@ -1246,20 +1326,19 @@ class MultiDeviceController:
                                 "video_end": video_end.strftime("%H:%M")
                             }
                 
-                elif event_type in ["jumua_pre", "jumua_khotba", "jumua_position3"]:
-                    # Jumuaa: from -10min before first to +60min after last
-                    jumua_time_str = event.get("jumua_time")
-                    if jumua_time_str:
-                        jumua_dt = datetime.strptime(f"{today} {jumua_time_str}", "%Y-%m-%d %H:%M")
-                        jumuaa_start = jumua_dt - timedelta(minutes=10)
-                        jumuaa_end = jumua_dt + timedelta(minutes=60)
-                        if jumuaa_start <= now <= jumuaa_end:
+                elif event_type == "jumuaa_block":
+                    start_str = event.get("start_time")
+                    end_str = event.get("end_time")
+                    if start_str and end_str:
+                        start_dt = datetime.strptime(f"{today} {start_str}", "%Y-%m-%d %H:%M")
+                        end_dt = datetime.strptime(f"{today} {end_str}", "%Y-%m-%d %H:%M")
+                        if start_dt <= now <= end_dt:
                             return {
                                 "type": "jumuaa",
                                 "prayer": "jumua",
                                 "description": event.get("description", "Jumuaa"),
-                                "onvif_start": jumuaa_start.strftime("%H:%M"),
-                                "onvif_end": jumuaa_end.strftime("%H:%M")
+                                "onvif_start": start_str,
+                                "onvif_end": end_str
                             }
                 
                 elif event_type == "tarawih":
@@ -1287,42 +1366,45 @@ class MultiDeviceController:
     def update_device(self, device: DeviceConfig) -> bool:
         """
         Update device display based on source availability.
-        
-        Logic (NEW):
+
+        Logic:
+        0. PLAY ORDER active? -> Force video (manual override, 30 min)
         1. HTTP available? -> Use HTTP (ABSOLUTE PRIORITY)
-        2. HTTP DOWN + In prayer time? -> Use ONVIF if available
-        3. Fallback -> Use MAWAQIT (always available)
-        
-        Prayer types that trigger ONVIF (if HTTP is down):
-        - tahajuud, fajr, iqama (salat), jumuaa, tarawih
+        2. HTTP DOWN + In prayer time? -> ONVIF or post-prayer video
+        3. Fallback -> VIDEO LOOP if box in VIDEO_LOOP_BOXES, else MAWAQIT
         """
         try:
+            # ====== RULE 0: PLAY ORDER MANUAL OVERRIDE ======
+            if self._play_order_active:
+                elapsed_min = (time.time() - self._play_order_start_time) / 60
+                logging.debug(f"[PLAY_ORDER] Override active ({elapsed_min:.1f}/{PLAY_ORDER_VIDEO_DURATION_MIN} min) on {device.name}")
+                return self.stream_manager.play_post_prayer_video(device)
+
             # ====== RULE 1: HTTP FIRST (ABSOLUTE PRIORITY) ======
             if self.http_available:
-                logging.debug(f"HTTP available -> streaming on {device.name}")
                 return self.stream_manager.play_http_vlc(device)
 
-            # ====== RULE 2: HTTP DOWN, check for prayer + ONVIF ======
+            # ====== RULE 2: HTTP DOWN, check for prayer ======
             prayer_info = self.get_prayer_info()
-            
-            if prayer_info and self.onvif_available:
+            if prayer_info:
                 prayer_type = prayer_info.get("type")
                 description = prayer_info.get("description", "")
-                
-                # Prayer types that use ONVIF
-                prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
-                
-                if prayer_type in prayer_types_with_onvif:
-                    logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
-                    return self.stream_manager.play_onvif(device)
 
-                elif prayer_type == "post_prayer_video":
+                if prayer_type == "post_prayer_video":
                     logging.info(f"[VIDEO] Post-prayer video: {description} on {device.name}")
                     return self.stream_manager.play_post_prayer_video(device)
 
-            # ====== RULE 3: FALLBACK to MAWAQIT ======
-            if prayer_info:
-                logging.info(f"Prayer but ONVIF unavailable -> Mawaqit on {device.name}")
+                prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
+                if prayer_type in prayer_types_with_onvif and self.onvif_available:
+                    logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
+                    return self.stream_manager.play_onvif(device)
+                if not self.onvif_available:
+                    logging.info(f"Prayer ({prayer_type}) but ONVIF unavailable -> fallback on {device.name}")
+
+            # ====== RULE 3: FALLBACK ======
+            if device.ip in VIDEO_LOOP_BOXES:
+                logging.debug(f"[VIDEO_LOOP] Fallback to video loop on {device.name}")
+                return self.stream_manager.play_post_prayer_video(device)
             return self.stream_manager.play_mawaqit(device)
 
         except Exception as e:
@@ -1515,6 +1597,9 @@ class MultiDeviceController:
 
                     # Check sources
                     self.check_sources()
+
+                    # Check play_order trigger file
+                    self._check_and_update_play_order()
 
                     # Launch MAWAQIT on box .115 if needed (only once at startup)
                     if not self._box_115_initialized:
