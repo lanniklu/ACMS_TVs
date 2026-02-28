@@ -84,7 +84,7 @@ ONVIF_TAP_Y = 100
 
 # Timing parameters
 CHECK_INTERVAL = 5        # Seconds between source checks
-NETWORK_RESCAN_INTERVAL = 300  # Seconds between network rescans (5 min)
+NETWORK_RESCAN_INTERVAL = 60  # Seconds between network rescans (5 min)
 ANTI_FLAP_TIME = 10       # Minimum time before source change (prevents oscillations)
                           # Explanation: If a source becomes available then unavailable
                           # quickly, we wait ANTI_FLAP_TIME seconds before switching
@@ -127,6 +127,9 @@ PLAY_ORDER_VIDEO_DURATION_MIN = 30
 
 # Boxes permanently in video-loop mode (bypass routing in fallback only)
 VIDEO_LOOP_BOXES = ["10.1.2.104"]
+
+# Boxes that must NEVER use ONVIF (will fallback to Mawaqit or video-loop instead)
+ONVIF_EXCLUDED_BOXES = ["10.1.2.103"]
 
 # Logging
 LOG_FILE = os.path.join(_LOGS_DIR, "mawaqit_stream.log")
@@ -1395,9 +1398,13 @@ class MultiDeviceController:
                     return self.stream_manager.play_post_prayer_video(device)
 
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
-                if prayer_type in prayer_types_with_onvif and self.onvif_available:
+                onvif_excluded = device.ip in ONVIF_EXCLUDED_BOXES
+                if prayer_type in prayer_types_with_onvif and self.onvif_available and not onvif_excluded:
                     logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
                     return self.stream_manager.play_onvif(device)
+                if onvif_excluded:
+                    logging.info(f"[ONVIF] Excluded for {device.name} ({device.ip}) -> Mawaqit")
+                    return self.stream_manager.play_mawaqit(device)
                 if not self.onvif_available:
                     logging.info(f"Prayer ({prayer_type}) but ONVIF unavailable -> fallback on {device.name}")
 
