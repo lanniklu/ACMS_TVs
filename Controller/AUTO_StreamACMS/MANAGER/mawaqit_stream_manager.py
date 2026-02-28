@@ -99,6 +99,7 @@ PRAYER_DURATION = 10      # Duration of prayers in minutes
 # Post-prayer video parameters
 POST_PRAYER_VIDEO_DELAY_MIN = 1    # Delay (min) after prayer ends before launching video
 POST_PRAYER_VIDEO_DURATION_MIN = 5  # Post-prayer video playback duration (minutes)
+TARAWIH_POST_VIDEO_DURATION_MIN = 30  # Post-Tarawih video duration (minutes) for excluded boxes
 POST_PRAYER_VIDEO_PATH = "/sdcard/video.mp4"  # Video path on the boxes (destination)
 # NOTE: POST_PRAYER_VIDEO_LOCAL_PATH is defined after _BASE_DIR below (DYNAMIC PATHS section)
 
@@ -130,6 +131,9 @@ VIDEO_LOOP_BOXES = ["10.1.2.104"]
 
 # Boxes that must NEVER use ONVIF (will fallback to Mawaqit or video-loop instead)
 ONVIF_EXCLUDED_BOXES = ["10.1.2.103"]
+
+# Boxes that use ONVIF ONLY for Tarawih/Jumuaa, video loop for all other prayers
+VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA_BOXES = ["10.1.2.104"]
 
 # Logging
 LOG_FILE = os.path.join(_LOGS_DIR, "mawaqit_stream.log")
@@ -1359,6 +1363,16 @@ class MultiDeviceController:
                                 "onvif_start": start_str,
                                 "onvif_end": end_str
                             }
+                        # Post-Tarawih video window
+                        post_end = end_dt + timedelta(minutes=TARAWIH_POST_VIDEO_DURATION_MIN)
+                        if end_dt <= now <= post_end:
+                            return {
+                                "type": "post_prayer_video",
+                                "prayer": "tarawih",
+                                "description": f"Video post-Tarawih ({end_dt.strftime('%H:%M')} -> {post_end.strftime('%H:%M')})",
+                                "video_start": end_dt.strftime("%H:%M"),
+                                "video_end": post_end.strftime("%H:%M")
+                            }
             
             return None
         
@@ -1399,6 +1413,10 @@ class MultiDeviceController:
 
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
                 onvif_excluded = device.ip in ONVIF_EXCLUDED_BOXES
+                # VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA: ONVIF only for tarawih/jumuaa, else video loop
+                if device.ip in VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA_BOXES and prayer_type not in ["tarawih", "jumuaa"]:
+                    logging.info(f"[VIDEO_LOOP] Non-special prayer ({prayer_type}), video loop on {device.name} ({device.ip})")
+                    return self.stream_manager.play_post_prayer_video(device)
                 if prayer_type in prayer_types_with_onvif and self.onvif_available and not onvif_excluded:
                     logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
                     return self.stream_manager.play_onvif(device)
