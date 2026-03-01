@@ -1413,16 +1413,19 @@ class MultiDeviceController:
 
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
                 onvif_excluded = device.ip in ONVIF_EXCLUDED_BOXES
+
+                # ONVIF_EXCLUDED: always Mawaqit, regardless of prayer type
+                if onvif_excluded:
+                    logging.info(f"[ONVIF] Excluded for {device.name} ({device.ip}) -> Mawaqit")
+                    return self.stream_manager.play_mawaqit(device)
+
                 # VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA: ONVIF only for tarawih/jumuaa, else video loop
                 if device.ip in VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA_BOXES and prayer_type not in ["tarawih", "jumuaa"]:
                     logging.info(f"[VIDEO_LOOP] Non-special prayer ({prayer_type}), video loop on {device.name} ({device.ip})")
                     return self.stream_manager.play_post_prayer_video(device)
-                if prayer_type in prayer_types_with_onvif and self.onvif_available and not onvif_excluded:
+                if prayer_type in prayer_types_with_onvif and self.onvif_available:
                     logging.info(f"[ONVIF] Prayer detected ({prayer_type}): {description} on {device.name}")
                     return self.stream_manager.play_onvif(device)
-                if onvif_excluded:
-                    logging.info(f"[ONVIF] Excluded for {device.name} ({device.ip}) -> Mawaqit")
-                    return self.stream_manager.play_mawaqit(device)
                 if not self.onvif_available:
                     logging.info(f"Prayer ({prayer_type}) but ONVIF unavailable -> fallback on {device.name}")
 
