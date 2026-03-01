@@ -258,6 +258,9 @@ main_loop() {
         # Start Python script
         log_info "Starting: ${PYTHON_EXECUTABLE} ${PYTHON_SCRIPT}"
         
+        # Reset stale heartbeat so watchdog doesn't fire immediately on restart
+        rm -f "${LOG_DIR}/mawaqit_heartbeat.txt"
+        
         # Run in background and capture PID
         cd "${BASE_DIR}" || {
             log_error "Cannot change to ${BASE_DIR}"
