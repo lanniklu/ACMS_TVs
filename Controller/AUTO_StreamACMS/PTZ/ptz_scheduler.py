@@ -240,8 +240,8 @@ class PTZScheduler:
                         "description": f"{prayer_name} (position {position})"
                     })
         
-        # RAMADAN: Add Tarawih event (Isha time + 2h30)
-        if is_ramadan and not (datetime.now().weekday() == 4):  # Not on Friday
+        # RAMADAN: Add Tarawih event (Isha time + 2h30) - every night including Fridays
+        if is_ramadan:
             isha_time = self._extract_time(prayer_times.get("isha"))
             if isha_time:
                 iqama_isha = self._add_minutes(isha_time, self.config.get("iqama_offset", 10))
