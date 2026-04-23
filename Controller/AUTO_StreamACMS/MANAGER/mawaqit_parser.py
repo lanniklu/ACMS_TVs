@@ -124,6 +124,45 @@ class MawaqitParser:
                         return None
         return None
 
+    def _parse_iqama_offset_value(self, value):
+        """Convert Mawaqit iqamaCalendar value to offset minutes."""
+        if isinstance(value, int):
+            return value
+        if not isinstance(value, str):
+            return None
+
+        match = re.match(r"^[+-]?(\d+)$", value.strip())
+        if not match:
+            return None
+        return int(match.group(1))
+
+    def _get_daily_iqama_offsets(self, conf_data):
+        """Return today's iqama offsets from confData.iqamaCalendar."""
+        iqama_calendar = conf_data.get("iqamaCalendar")
+        if not isinstance(iqama_calendar, list):
+            return {}
+
+        today = datetime.now()
+        month_index = today.month - 1
+        if month_index < 0 or month_index >= len(iqama_calendar):
+            return {}
+
+        month_calendar = iqama_calendar[month_index]
+        if not isinstance(month_calendar, dict):
+            return {}
+
+        day_values = month_calendar.get(str(today.day))
+        if not isinstance(day_values, list):
+            return {}
+
+        prayer_names = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+        offsets = {}
+        for prayer_name, raw_value in zip(prayer_names, day_values):
+            offset = self._parse_iqama_offset_value(raw_value)
+            if offset is not None:
+                offsets[prayer_name] = offset
+        return offsets
+
     def _fetch_from_website(self):
         """
         Fetch prayer times by scraping Mawaqit website (HTML text parsing)
@@ -153,12 +192,13 @@ class MawaqitParser:
             conf_data = self._extract_conf_data(html_text)
             if conf_data:
                 times_list = conf_data.get("times") or []
+                iqama_offsets = self._get_daily_iqama_offsets(conf_data)
                 if len(times_list) >= 5:
-                    prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": 10}
-                    prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": 10}
-                    prayer_times["asr"] = {"time": times_list[2], "iqama_offset": 10}
-                    prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": 10}
-                    prayer_times["isha"] = {"time": times_list[4], "iqama_offset": 10}
+                    prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": iqama_offsets.get("fajr", 10)}
+                    prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": iqama_offsets.get("dhuhr", 10)}
+                    prayer_times["asr"] = {"time": times_list[2], "iqama_offset": iqama_offsets.get("asr", 10)}
+                    prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": iqama_offsets.get("maghrib", 10)}
+                    prayer_times["isha"] = {"time": times_list[4], "iqama_offset": iqama_offsets.get("isha", 10)}
 
                 jumua_times = []
                 for key in ["jumua", "jumua2", "jumua3"]:
