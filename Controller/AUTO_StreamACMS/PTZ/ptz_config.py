@@ -26,8 +26,8 @@ PTZ_CONFIG = {
     "default_position": 2,
     
     # Paths (for Linux RPi)
-    "schedules_dir": "/home/acms_tech/AUTO_StreamACMS/schedules/",
-    "logs_dir": "/home/acms_tech/AUTO_StreamACMS/logs/",
+    "schedules_dir": "/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/schedules/",
+    "logs_dir": "/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/logs/",
     
     # Prayer timing
     "iqama_offset": 10,               # Minutes after Adhan before Onvif activates (all prayers, all year)

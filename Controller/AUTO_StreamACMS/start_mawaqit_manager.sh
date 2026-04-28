@@ -8,7 +8,7 @@
 #   Restarts on failure, handles dependencies, manages logs
 #
 # Usage (crontab):
-#   @reboot /home/acms_tech/AUTO_StreamACMS/start_mawaqit_manager.sh
+#   @reboot /home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/start_mawaqit_manager.sh >> /home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/logs/cron.log 2>&1
 #
 # Exit codes:
 #   0: Clean exit (process was running, stopped by signal)
@@ -25,7 +25,7 @@ IFS=$'\n\t'  # Secure IFS
 # CONFIGURATION
 # ============================================================================
 
-BASE_DIR="/home/acms_tech/AUTO_StreamACMS"
+BASE_DIR="/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS"
 PYTHON_SCRIPT="${BASE_DIR}/MANAGER/mawaqit_stream_manager.py"
 LOG_DIR="${BASE_DIR}/logs"
 LOG_FILE="${LOG_DIR}/supervisor.log"

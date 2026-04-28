@@ -125,7 +125,7 @@ _SCHEDULES_DIR = os.path.join(_BASE_DIR, "schedules")
 POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "video.mp4")  # Local path on the RPI
 
 # Play-order manual override (write '1' to trigger 30min video on all boxes)
-PLAY_ORDER_FILE = "/home/acms_tech/AUTO_StreamACMS/media/play_order.txt"
+PLAY_ORDER_FILE = "/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/media/play_order.txt"
 PLAY_ORDER_VIDEO_DURATION_MIN = 30
 
 # Display override (WebUI) : force a specific mode on individual boxes
