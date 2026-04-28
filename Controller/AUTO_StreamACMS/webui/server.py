@@ -253,6 +253,30 @@ DASHBOARD_HTML = """
 
 <div class="grid">
 
+  <!-- ── VIDÉO MANUELLE ── -->
+  <div class="card">
+    <h2>▶️ Lecture manuelle (30 min — toutes les boxes)</h2>
+    <div class="play-order-status {% if play_order_active %}active{% endif %}" id="play-order-status">
+      ⏳ Vidéo manuelle en cours de lecture sur toutes les boxes…
+    </div>
+    <button class="btn btn-{% if play_order_active %}danger{% else %}primary{% endif %}"
+            id="play-order-btn" onclick="togglePlayOrder()">
+      {% if play_order_active %}⛔ Arrêter la lecture{% else %}▶️ Lancer la vidéo maintenant{% endif %}
+    </button>
+  </div>
+
+  <!-- ── CAMÉRA LIVE FORCÉE ── -->
+  <div class="card">
+    <h2>📡 Caméra live forcée (30 min — toutes les boxes)</h2>
+    <div class="play-order-status {% if onvif_force_active %}active{% endif %}" id="onvif-force-status">
+      📹 Caméra live en cours sur toutes les boxes…
+    </div>
+    <button class="btn btn-{% if onvif_force_active %}danger{% else %}primary{% endif %}"
+            id="onvif-force-btn" onclick="toggleOnvifForce()">
+      {% if onvif_force_active %}⛔ Arrêter la caméra live{% else %}📡 Afficher la caméra maintenant{% endif %}
+    </button>
+  </div>
+
   <!-- ── VIDÉO ── -->
   <div class="card">
     <h2>🎬 Vidéo post-prière</h2>
@@ -292,30 +316,6 @@ DASHBOARD_HTML = """
       {% endfor %}
     </div>
     <div class="cam-status" id="cam-status">Cliquez sur un preset pour déplacer la caméra</div>
-  </div>
-
-  <!-- ── VIDÉO MANUELLE ── -->
-  <div class="card" style="grid-column: 1 / -1">
-    <h2>▶️ Lecture manuelle (30 min — toutes les boxes)</h2>
-    <div class="play-order-status {% if play_order_active %}active{% endif %}" id="play-order-status">
-      ⏳ Vidéo manuelle en cours de lecture sur toutes les boxes…
-    </div>
-    <button class="btn btn-{% if play_order_active %}danger{% else %}primary{% endif %}"
-            id="play-order-btn" onclick="togglePlayOrder()">
-      {% if play_order_active %}⛔ Arrêter la lecture{% else %}▶️ Lancer la vidéo maintenant{% endif %}
-    </button>
-  </div>
-
-  <!-- ── CAMÉRA LIVE FORCÉE ── -->
-  <div class="card" style="grid-column: 1 / -1">
-    <h2>📡 Caméra live forcée (30 min — toutes les boxes)</h2>
-    <div class="play-order-status {% if onvif_force_active %}active{% endif %}" id="onvif-force-status">
-      📹 Caméra live en cours sur toutes les boxes…
-    </div>
-    <button class="btn btn-{% if onvif_force_active %}danger{% else %}primary{% endif %}"
-            id="onvif-force-btn" onclick="toggleOnvifForce()">
-      {% if onvif_force_active %}⛔ Arrêter la caméra live{% else %}📡 Afficher la caméra maintenant{% endif %}
-    </button>
   </div>
 
 </div>
