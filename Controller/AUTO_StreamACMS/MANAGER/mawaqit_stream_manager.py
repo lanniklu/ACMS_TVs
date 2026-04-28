@@ -127,6 +127,11 @@ POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "video.mp4")  # 
 # Play-order manual override (write '1' to trigger 30min video on all boxes)
 PLAY_ORDER_FILE = "/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/media/play_order.txt"
 PLAY_ORDER_VIDEO_DURATION_MIN = 30
+ONVIF_FORCE_FILE = "/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/media/onvif_force.txt"
+ONVIF_FORCE_DURATION_MIN = 30
+
+# Boxes status file (written after each discovery/rescan – read by WebUI)
+BOXES_STATUS_FILE = os.path.join(_BASE_DIR, "media", "boxes_status.json")
 
 # Display override (WebUI) : force a specific mode on individual boxes
 # JSON : { "10.1.2.101": "ONVIF" | "MAWAQIT" | "VLC" | null }
@@ -1078,6 +1083,8 @@ class MultiDeviceController:
         self._box_115_initialized = False  # Track if .115 has been launched
         self._play_order_active = False
         self._play_order_start_time: Optional[float] = None
+        self._onvif_force_active = False
+        self._onvif_force_start_time: Optional[float] = None
         self._scheduled_restart = False  # Set True when exiting for scheduled weekly restart
 
         # ============================================================
@@ -1192,6 +1199,55 @@ class MultiDeviceController:
         except Exception as e:
             logging.error(f"[PLAY_ORDER] Error checking play_order file: {e}")
 
+    def _check_and_update_onvif_force(self):
+        """Check onvif_force.txt trigger and manage 30-min ONVIF override on all boxes."""
+        try:
+            if self._onvif_force_active:
+                elapsed_min = (time.time() - self._onvif_force_start_time) / 60
+                if elapsed_min >= ONVIF_FORCE_DURATION_MIN:
+                    logging.info("[ONVIF_FORCE] 30 min elapsed — deactivating and writing 0")
+                    self._onvif_force_active = False
+                    self._onvif_force_start_time = None
+                    try:
+                        with open(ONVIF_FORCE_FILE, 'w') as f:
+                            f.write('0\n')
+                        logging.info(f"[ONVIF_FORCE] Written '0' to {ONVIF_FORCE_FILE}")
+                    except Exception as e:
+                        logging.error(f"[ONVIF_FORCE] Cannot write '0' to file: {e}")
+                else:
+                    remaining = ONVIF_FORCE_DURATION_MIN - elapsed_min
+                    logging.debug(f"[ONVIF_FORCE] Active: {elapsed_min:.1f}/{ONVIF_FORCE_DURATION_MIN} min ({remaining:.1f} min left)")
+                return
+            if not os.path.exists(ONVIF_FORCE_FILE):
+                return
+            with open(ONVIF_FORCE_FILE, 'r') as f:
+                val = f.read().strip()
+            if val == '1':
+                logging.info(f"[ONVIF_FORCE] Trigger detected — starting {ONVIF_FORCE_DURATION_MIN} min ONVIF on all boxes")
+                self._onvif_force_active = True
+                self._onvif_force_start_time = time.time()
+        except Exception as e:
+            logging.error(f"[ONVIF_FORCE] Error checking onvif_force file: {e}")
+
+    def _write_boxes_status(self):
+        """Write detected boxes to media/boxes_status.json for the WebUI."""
+        try:
+            import json as _json
+            from datetime import datetime as _dt
+            data = {
+                "updated": _dt.now().isoformat(timespec="seconds"),
+                "boxes": [
+                    {"ip": d.ip, "name": d.name, "model": d.model}
+                    for d in self.devices
+                ]
+            }
+            os.makedirs(os.path.dirname(BOXES_STATUS_FILE), exist_ok=True)
+            with open(BOXES_STATUS_FILE, "w") as f:
+                _json.dump(data, f, ensure_ascii=False, indent=2)
+            logging.debug(f"[BOXES_STATUS] Written {len(self.devices)} boxes to {BOXES_STATUS_FILE}")
+        except Exception as e:
+            logging.error(f"[BOXES_STATUS] Cannot write boxes_status.json: {e}")
+
     def initialize(self) -> bool:
         """Initialize the system"""
         logging.info("=" * 70)
@@ -1209,6 +1265,7 @@ class MultiDeviceController:
         for attempt in range(1, max_init_retries + 1):
             self.devices = NetworkScanner.discover_mawaqit_boxes()
             if self.devices:
+                self._write_boxes_status()
                 break
             if attempt < max_init_retries:
                 logging.warning(f"No boxes found (attempt {attempt}/{max_init_retries}), waiting 15s for network...")
@@ -1438,6 +1495,16 @@ class MultiDeviceController:
             elif override == "VLC":
                 logging.info(f"[OVERRIDE] Forcing VLC on {device.name}")
                 return self.stream_manager.play_post_prayer_video(device)
+
+            # ====== RULE 0b: ONVIF FORCE MANUAL OVERRIDE (30 min) ======
+            if self._onvif_force_active:
+                elapsed_min = (time.time() - self._onvif_force_start_time) / 60
+                logging.debug(f"[ONVIF_FORCE] Override active ({elapsed_min:.1f}/{ONVIF_FORCE_DURATION_MIN} min) on {device.name}")
+                if self.onvif_available:
+                    return self.stream_manager.play_onvif(device)
+                else:
+                    logging.info(f"[ONVIF_FORCE] ONVIF unavailable on {device.name} -> Mawaqit fallback")
+                    return self.stream_manager.play_mawaqit(device)
 
             # ====== RULE 0: PLAY ORDER MANUAL OVERRIDE ======
             if self._play_order_active:
@@ -1677,6 +1744,9 @@ class MultiDeviceController:
                     # Check play_order trigger file
                     self._check_and_update_play_order()
 
+                    # Check onvif_force trigger file
+                    self._check_and_update_onvif_force()
+
                     # Launch MAWAQIT on box .115 if needed (only once at startup)
                     if not self._box_115_initialized:
                         try:
@@ -1729,6 +1799,7 @@ class MultiDeviceController:
 
                             # Update device list
                             self.devices = new_boxes
+                            self._write_boxes_status()
                             last_network_scan = time.time()
 
                         except Exception as e:

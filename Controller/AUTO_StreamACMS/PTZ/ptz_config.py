@@ -15,11 +15,13 @@ PTZ_CONFIG = {
     
     # Preset positions
     "positions": {
-        1: {"name": "Khotba", "description": "Imam podium/Sermon"},
-        2: {"name": "Salat", "description": "Prayer"},
-        3: {"name": "LARGE", "description": "Large"},
+        1: {"name": "Khotba",     "description": "Imam podium / Sermon"},
+        2: {"name": "Salat",      "description": "Prayer"},
+        3: {"name": "Large 1",    "description": "Vue large 1"},
+        4: {"name": "Large 2",    "description": "Vue large 2"},
         5: {"name": "Conference", "description": "Conference"},
-        7: {"name": "Jumuaa", "description": "Jumuaa / Friday prayer"}
+        6: {"name": "Imam",       "description": "Gros plan Imam"},
+        7: {"name": "Jumuaa",     "description": "Jumuaa / Friday prayer"}
     },
     
     # Default position

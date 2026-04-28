@@ -31,6 +31,8 @@ PTZ_DIR    = os.path.join(BASE_DIR, "PTZ")
 MEDIA_DIR  = os.path.join(BASE_DIR, "media")
 VIDEO_PATH = os.path.join(MEDIA_DIR, "video.mp4")
 PLAY_ORDER_FILE     = os.path.join(MEDIA_DIR, "play_order.txt")
+ONVIF_FORCE_FILE    = os.path.join(MEDIA_DIR, "onvif_force.txt")
+BOXES_STATUS_FILE   = os.path.join(MEDIA_DIR, "boxes_status.json")
 DISPLAY_OVERRIDE_FILE = os.path.join(MEDIA_DIR, "display_override.json")
 
 sys.path.insert(0, PTZ_DIR)
@@ -57,18 +59,28 @@ USERS = {
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs", "webui_actions.log")
 
 # Boxes Android TV (IP → nom affiché)
-BOXES = [
-    {"ip": "10.1.2.101", "name": "RDC AVANT"},
-    {"ip": "10.1.2.103", "name": "RDC MILIEU"},
-    {"ip": "10.1.2.104", "name": "ECRAN GEANT"},
-    {"ip": "10.1.2.105", "name": "Box 105"},
-    {"ip": "10.1.2.106", "name": "Box 106"},
-    {"ip": "10.1.2.107", "name": "Box 107"},
-    {"ip": "10.1.2.109", "name": "Box 109"},
-    {"ip": "10.1.2.110", "name": "Box 110"},
-    {"ip": "10.1.2.111", "name": "Box 111"},
-    {"ip": "10.1.2.112", "name": "Box 112"},
-]
+# KNOWN_NAMES : noms lisibles pour les IPs connues. Utilisé quand boxes_status.json est absent.
+KNOWN_NAMES = {
+    "10.1.2.101": "RDC AVANT",
+    "10.1.2.103": "RDC MILIEU",
+    "10.1.2.104": "ECRAN GEANT",
+    "10.1.2.105": "Box 105",
+    "10.1.2.106": "Box 106",
+    "10.1.2.107": "Box 107",
+    "10.1.2.109": "Box 109",
+    "10.1.2.110": "Box 110",
+    "10.1.2.111": "Box 111",
+    "10.1.2.112": "Box 112",
+    "10.1.2.113": "Box 113",
+    "10.1.2.114": "Box 114",
+    "10.1.2.115": "Box 115",
+}
+
+# Liste statique complète (fallback si boxes_status.json absent)
+BOXES = [{"ip": ip, "name": name} for ip, name in KNOWN_NAMES.items()]
+
+# IPs autorisées pour display/set (toute la plage possible 101-120)
+_VALID_IP_RANGE = {f"10.1.2.{i}" for i in range(101, 121)}
 
 ALLOWED_EXTENSIONS = {"mp4"}
 
@@ -294,6 +306,18 @@ DASHBOARD_HTML = """
     </button>
   </div>
 
+  <!-- ── CAMÉRA LIVE FORCÉE ── -->
+  <div class="card" style="grid-column: 1 / -1">
+    <h2>📡 Caméra live forcée (30 min — toutes les boxes)</h2>
+    <div class="play-order-status {% if onvif_force_active %}active{% endif %}" id="onvif-force-status">
+      📹 Caméra live en cours sur toutes les boxes…
+    </div>
+    <button class="btn btn-{% if onvif_force_active %}danger{% else %}primary{% endif %}"
+            id="onvif-force-btn" onclick="toggleOnvifForce()">
+      {% if onvif_force_active %}⛔ Arrêter la caméra live{% else %}📡 Afficher la caméra maintenant{% endif %}
+    </button>
+  </div>
+
 </div>
 
 <script>
@@ -372,6 +396,25 @@ function togglePlayOrder() {
       }
     });
 }
+
+// ── ONVIF force ───────────────────────────────────────────────────────────────
+function toggleOnvifForce() {
+  fetch('/onvif_force/toggle', {method: 'POST'})
+    .then(r => r.json())
+    .then(d => {
+      const btn = document.getElementById('onvif-force-btn');
+      const status = document.getElementById('onvif-force-status');
+      if (d.active) {
+        btn.textContent = '⛔ Arrêter la caméra live';
+        btn.className = 'btn btn-danger';
+        status.style.display = 'block';
+      } else {
+        btn.textContent = '📡 Afficher la caméra maintenant';
+        btn.className = 'btn btn-primary';
+        status.style.display = 'none';
+      }
+    });
+}
 </script>
 </body></html>
 """
@@ -427,18 +470,24 @@ DISPLAY_HTML = """
   <div class="card">
     <h2>📺 Mode d'affichage par box</h2>
 
-    <div class="legend">
-      <span><span class="dot dot-auto"></span> Auto (planning prières)</span>
-      <span><span class="dot dot-onvif"></span> Caméra ONVIF</span>
-      <span><span class="dot dot-mawaqit"></span> Mawaqit</span>
-      <span><span class="dot dot-vlc"></span> Vidéo (VLC)</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="legend" style="margin-bottom:0">
+        <span><span class="dot dot-auto"></span> Auto (planning prières)</span>
+        <span><span class="dot dot-onvif"></span> Caméra ONVIF</span>
+        <span><span class="dot dot-mawaqit"></span> Mawaqit</span>
+        <span><span class="dot dot-vlc"></span> Vidéo (VLC)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="boxes-updated" style="font-size:.78em;color:#aaa"></span>
+        <button class="btn-reset-all" onclick="refreshBoxes()" style="padding:6px 12px;font-size:.82em">🔄 Actualiser</button>
+      </div>
     </div>
 
     <table>
       <thead><tr><th>Box</th><th>Mode</th></tr></thead>
       <tbody id="boxes-table">
       {% for box in boxes %}
-      <tr>
+      <tr data-ip="{{ box.ip }}">
         <td class="box-name">{{ box.name }}<br><span style="font-size:.78em;color:#aaa;font-weight:normal">{{ box.ip }}</span></td>
         <td>
           <div class="seg" data-ip="{{ box.ip }}">
@@ -463,6 +512,39 @@ DISPLAY_HTML = """
 
 <script>
 const CLASS = {AUTO:'active-auto',ONVIF:'active-onvif',MAWAQIT:'active-mawaqit',VLC:'active-vlc'};
+
+function renderRow(box) {
+  const mode = box.mode || 'AUTO';
+  return `<tr data-ip="${box.ip}">
+    <td class="box-name">${box.name}<br><span style="font-size:.78em;color:#aaa;font-weight:normal">${box.ip}</span></td>
+    <td>
+      <div class="seg" data-ip="${box.ip}">
+        <button onclick="setMode('${box.ip}','AUTO',this)" class="${mode==='AUTO'?'active-auto':''}">🔄 Auto</button>
+        <button onclick="setMode('${box.ip}','ONVIF',this)" class="${mode==='ONVIF'?'active-onvif':''}">📷 Caméra</button>
+        <button onclick="setMode('${box.ip}','MAWAQIT',this)" class="${mode==='MAWAQIT'?'active-mawaqit':''}">🕌 Mawaqit</button>
+        <button onclick="setMode('${box.ip}','VLC',this)" class="${mode==='VLC'?'active-vlc':''}">🎬 Vidéo</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function refreshBoxes() {
+  const updEl = document.getElementById('boxes-updated');
+  updEl && (updEl.textContent = '⏳ Actualisation…');
+  fetch('/api/boxes')
+    .then(r => r.json())
+    .then(data => {
+      const tbody = document.getElementById('boxes-table');
+      tbody.innerHTML = data.boxes.map(renderRow).join('');
+      if (updEl && data.updated) {
+        const d = new Date(data.updated);
+        updEl.textContent = `Scan: ${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`;
+      } else if (updEl) {
+        updEl.textContent = '';
+      }
+    })
+    .catch(() => { updEl && (updEl.textContent = '⚠️ Erreur de chargement'); });
+}
 
 function setMode(ip, mode, btn) {
   // Mise à jour visuelle immédiate
@@ -491,6 +573,17 @@ function resetAll() {
   });
   fetch('/display/reset', {method:'POST'});
 }
+
+// Auto-refresh toutes les 60 secondes
+setInterval(refreshBoxes, 60000);
+// Charger le timestamp initial sans re-render (boxes déjà dans le HTML)
+fetch('/api/boxes').then(r=>r.json()).then(d=>{
+  const el = document.getElementById('boxes-updated');
+  if(el && d.updated) {
+    const dt = new Date(d.updated);
+    el.textContent = `Scan: ${dt.toLocaleDateString('fr-FR')} ${dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`;
+  }
+}).catch(()=>{});
 </script>
 </body></html>
 """
@@ -504,9 +597,33 @@ def video_info():
         return "video.mp4", f"{size_mb:.1f} Mo", date_str
     return "Aucune vidéo", "—", "—"
 
+def get_active_boxes():
+    """Return detected boxes from boxes_status.json (written by stream manager).
+    Falls back to the static BOXES list if the file doesn't exist yet."""
+    try:
+        with open(BOXES_STATUS_FILE, "r") as f:
+            data = json.load(f)
+        boxes = []
+        for b in data.get("boxes", []):
+            ip = b.get("ip", "")
+            name = KNOWN_NAMES.get(ip) or b.get("name") or ip
+            boxes.append({"ip": ip, "name": name})
+        if boxes:
+            return boxes
+    except Exception:
+        pass
+    return BOXES  # fallback
+
+
 def is_play_order_active():
     try:
         return open(PLAY_ORDER_FILE).read().strip() == "1"
+    except Exception:
+        return False
+
+def is_onvif_force_active():
+    try:
+        return open(ONVIF_FORCE_FILE).read().strip() == "1"
     except Exception:
         return False
 
@@ -521,7 +638,8 @@ def dashboard():
         video_name=v_name, video_size=v_size, video_date=v_date,
         presets=presets,
         active_preset=None,
-        play_order_active=is_play_order_active()
+        play_order_active=is_play_order_active(),
+        onvif_force_active=is_onvif_force_active()
     )
 
 @app.route("/display", methods=["GET"])
@@ -530,9 +648,27 @@ def display_page():
     overrides = load_display_overrides()
     boxes = [
         {**b, "mode": overrides.get(b["ip"]) or "AUTO"}
-        for b in BOXES
+        for b in get_active_boxes()
     ]
     return render_template_string(DISPLAY_HTML, boxes=boxes, username=session.get("username", ""))
+
+@app.route("/api/boxes", methods=["GET"])
+@login_required
+def api_boxes():
+    """Return currently detected boxes + their override mode (used by JS for live refresh)."""
+    overrides = load_display_overrides()
+    boxes = [
+        {**b, "mode": overrides.get(b["ip"]) or "AUTO"}
+        for b in get_active_boxes()
+    ]
+    # Also return the file update timestamp if available
+    updated = None
+    try:
+        with open(BOXES_STATUS_FILE) as f:
+            updated = json.load(f).get("updated")
+    except Exception:
+        pass
+    return jsonify({"boxes": boxes, "updated": updated})
 
 @app.route("/display/set", methods=["POST"])
 @login_required
@@ -540,9 +676,8 @@ def display_set():
     data = request.get_json(force=True, silent=True) or {}
     ip   = data.get("ip", "").strip()
     mode = data.get("mode", "AUTO").upper()
-    # Valider que l'IP fait partie de la liste connue
-    valid_ips = {b["ip"] for b in BOXES}
-    if ip not in valid_ips or mode not in ("AUTO", "ONVIF", "MAWAQIT", "VLC"):
+    # Valider que l'IP est dans la plage réseau autorisée (101-120)
+    if ip not in _VALID_IP_RANGE or mode not in ("AUTO", "ONVIF", "MAWAQIT", "VLC"):
         return jsonify({"ok": False, "error": "Paramètres invalides"}), 400
     overrides = load_display_overrides()
     if mode == "AUTO":
@@ -624,6 +759,20 @@ def play_order_toggle():
         with open(PLAY_ORDER_FILE, "w") as fh:
             fh.write(new_val + "\n")
         log_action("PLAY_ORDER ON" if not active else "PLAY_ORDER OFF")
+        return jsonify({"active": not active})
+    except Exception as e:
+        return jsonify({"active": active, "error": str(e)}), 500
+
+@app.route("/onvif_force/toggle", methods=["POST"])
+@login_required
+def onvif_force_toggle():
+    active = is_onvif_force_active()
+    new_val = "0" if active else "1"
+    try:
+        os.makedirs(MEDIA_DIR, exist_ok=True)
+        with open(ONVIF_FORCE_FILE, "w") as fh:
+            fh.write(new_val + "\n")
+        log_action("ONVIF_FORCE ON" if not active else "ONVIF_FORCE OFF")
         return jsonify({"active": not active})
     except Exception as e:
         return jsonify({"active": active, "error": str(e)}), 500
