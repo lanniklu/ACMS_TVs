@@ -130,7 +130,6 @@ class MawaqitParser:
             return value
         if not isinstance(value, str):
             return None
-
         match = re.match(r"^[+-]?(\d+)$", value.strip())
         if not match:
             return None
@@ -141,20 +140,16 @@ class MawaqitParser:
         iqama_calendar = conf_data.get("iqamaCalendar")
         if not isinstance(iqama_calendar, list):
             return {}
-
         today = datetime.now()
         month_index = today.month - 1
         if month_index < 0 or month_index >= len(iqama_calendar):
             return {}
-
         month_calendar = iqama_calendar[month_index]
         if not isinstance(month_calendar, dict):
             return {}
-
         day_values = month_calendar.get(str(today.day))
         if not isinstance(day_values, list):
             return {}
-
         prayer_names = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
         offsets = {}
         for prayer_name, raw_value in zip(prayer_names, day_values):
@@ -162,6 +157,20 @@ class MawaqitParser:
             if offset is not None:
                 offsets[prayer_name] = offset
         return offsets
+
+    def _get_daily_dua_durations(self, conf_data):
+        """Return prayer dua durations from confData.duaAfterPrayerShowTimes."""
+        raw = conf_data.get("duaAfterPrayerShowTimes")
+        if not isinstance(raw, list) or len(raw) < 5:
+            return {}
+        prayer_names = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+        durations = {}
+        for prayer_name, value in zip(prayer_names, raw):
+            try:
+                durations[prayer_name] = int(value)
+            except (ValueError, TypeError):
+                pass
+        return durations
 
     def _fetch_from_website(self):
         """
@@ -193,12 +202,13 @@ class MawaqitParser:
             if conf_data:
                 times_list = conf_data.get("times") or []
                 iqama_offsets = self._get_daily_iqama_offsets(conf_data)
+                dua_durations = self._get_daily_dua_durations(conf_data)
                 if len(times_list) >= 5:
-                    prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": iqama_offsets.get("fajr", 10)}
-                    prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": iqama_offsets.get("dhuhr", 10)}
-                    prayer_times["asr"] = {"time": times_list[2], "iqama_offset": iqama_offsets.get("asr", 10)}
-                    prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": iqama_offsets.get("maghrib", 10)}
-                    prayer_times["isha"] = {"time": times_list[4], "iqama_offset": iqama_offsets.get("isha", 10)}
+                    prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": iqama_offsets.get("fajr", 10), "dua_duration": dua_durations.get("fajr", 10)}
+                    prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": iqama_offsets.get("dhuhr", 10), "dua_duration": dua_durations.get("dhuhr", 10)}
+                    prayer_times["asr"] = {"time": times_list[2], "iqama_offset": iqama_offsets.get("asr", 10), "dua_duration": dua_durations.get("asr", 10)}
+                    prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": iqama_offsets.get("maghrib", 10), "dua_duration": dua_durations.get("maghrib", 10)}
+                    prayer_times["isha"] = {"time": times_list[4], "iqama_offset": iqama_offsets.get("isha", 10), "dua_duration": dua_durations.get("isha", 10)}
 
                 jumua_times = []
                 for key in ["jumua", "jumua2", "jumua3"]:
@@ -220,11 +230,11 @@ class MawaqitParser:
                         times_list = []
 
                     if len(times_list) >= 5:
-                        prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": 10}
-                        prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": 10}
-                        prayer_times["asr"] = {"time": times_list[2], "iqama_offset": 10}
-                        prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": 10}
-                        prayer_times["isha"] = {"time": times_list[4], "iqama_offset": 10}
+                        prayer_times["fajr"] = {"time": times_list[0], "iqama_offset": 10, "dua_duration": 10}
+                        prayer_times["dhuhr"] = {"time": times_list[1], "iqama_offset": 10, "dua_duration": 10}
+                        prayer_times["asr"] = {"time": times_list[2], "iqama_offset": 10, "dua_duration": 10}
+                        prayer_times["maghrib"] = {"time": times_list[3], "iqama_offset": 10, "dua_duration": 10}
+                        prayer_times["isha"] = {"time": times_list[4], "iqama_offset": 10, "dua_duration": 10}
 
                     jumua_times = []
                     for key in ["jumua", "jumua2", "jumua3"]:
@@ -253,7 +263,8 @@ class MawaqitParser:
                     else:
                         prayer_times[prayer_key] = {
                             "time": time_str,
-                            "iqama_offset": int(offset) if offset else 10
+                            "iqama_offset": int(offset) if offset else 10,
+                            "dua_duration": 10
                         }
 
                 if jumua_times:
@@ -303,6 +314,13 @@ class MawaqitParser:
         prayer = self.prayer_times.get(prayer_name.lower())
         if isinstance(prayer, dict):
             return prayer.get("iqama_offset", 10)
+        return 10
+
+    def get_dua_duration(self, prayer_name):
+        """Get dua duration after prayer (minutes) from Mawaqit duaAfterPrayerShowTimes"""
+        prayer = self.prayer_times.get(prayer_name.lower())
+        if isinstance(prayer, dict):
+            return prayer.get("dua_duration", 10)
         return 10
     
     def get_all_prayer_times(self):

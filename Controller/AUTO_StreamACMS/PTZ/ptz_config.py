@@ -4,19 +4,22 @@ Camera: DS-2DE2A404IW-DE3
 IP: 10.1.5.20
 """
 
+import os
+
 PTZ_CONFIG = {
     # Camera connection
     "camera_ip": "10.1.5.20",
     "camera_port": 80,
     "camera_user": "admin",
-    "camera_password": "CAMERA_PASSWORD_REDACTED",  # Will be configured at runtime
+    "camera_password": os.environ.get("ACMS_CAM_PASSWORD", ""),  # Set via: export ACMS_CAM_PASSWORD=...
     
     # Preset positions
     "positions": {
         1: {"name": "Khotba", "description": "Imam podium/Sermon"},
         2: {"name": "Salat", "description": "Prayer"},
         3: {"name": "LARGE", "description": "Large"},
-        5: {"name": "Conference", "description": "Conference"}
+        5: {"name": "Conference", "description": "Conference"},
+        7: {"name": "Jumuaa", "description": "Jumuaa / Friday prayer"}
     },
     
     # Default position

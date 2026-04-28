@@ -17,6 +17,7 @@ import time
 import logging
 import socket
 import re
+import json
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -99,6 +100,7 @@ PRAYER_DURATION = 10      # Duration of prayers in minutes
 # Post-prayer video parameters
 POST_PRAYER_VIDEO_DELAY_MIN = 1    # Delay (min) after prayer ends before launching video
 POST_PRAYER_VIDEO_DURATION_MIN = 5  # Post-prayer video playback duration (minutes)
+RAMADAN_ISHA_PRE_ADHAN_VIDEO_MIN = 2  # Minutes before Adhan Isha to start video (Ramadan only)
 TARAWIH_POST_VIDEO_DURATION_MIN = 30  # Post-Tarawih video duration (minutes) for excluded boxes
 POST_PRAYER_VIDEO_PATH = "/sdcard/video.mp4"  # Video path on the boxes (destination)
 # NOTE: POST_PRAYER_VIDEO_LOCAL_PATH is defined after _BASE_DIR below (DYNAMIC PATHS section)
@@ -125,6 +127,10 @@ POST_PRAYER_VIDEO_LOCAL_PATH = os.path.join(_BASE_DIR, "media", "video.mp4")  # 
 # Play-order manual override (write '1' to trigger 30min video on all boxes)
 PLAY_ORDER_FILE = "/home/acms_tech/AUTO_StreamACMS/media/play_order.txt"
 PLAY_ORDER_VIDEO_DURATION_MIN = 30
+
+# Display override (WebUI) : force a specific mode on individual boxes
+# JSON : { "10.1.2.101": "ONVIF" | "MAWAQIT" | "VLC" | null }
+DISPLAY_OVERRIDE_FILE = os.path.join(_BASE_DIR, "media", "display_override.json")
 
 # Boxes permanently in video-loop mode (bypass routing in fallback only)
 VIDEO_LOOP_BOXES = ["10.1.2.104"]
@@ -1072,6 +1078,7 @@ class MultiDeviceController:
         self._box_115_initialized = False  # Track if .115 has been launched
         self._play_order_active = False
         self._play_order_start_time: Optional[float] = None
+        self._scheduled_restart = False  # Set True when exiting for scheduled weekly restart
 
         # ============================================================
         # PTZ CAMERA INITIALIZATION
@@ -1350,11 +1357,24 @@ class MultiDeviceController:
                 
                 elif event_type == "tarawih":
                     # Tarawih: from isha_time to isha_time + 125 min
-                    start_str = event.get("onvif_start")
+                    start_str = event.get("onvif_start")  # = iqama isha
                     end_str = event.get("onvif_end")
+                    isha_str = event.get("isha_time")
                     if start_str and end_str:
                         start_dt = datetime.strptime(f"{today} {start_str}", "%Y-%m-%d %H:%M")
                         end_dt = datetime.strptime(f"{today} {end_str}", "%Y-%m-%d %H:%M")
+                        # Pre-adhan Isha video: RAMADAN_ISHA_PRE_ADHAN_VIDEO_MIN before Adhan until iqama
+                        if isha_str:
+                            isha_dt = datetime.strptime(f"{today} {isha_str}", "%Y-%m-%d %H:%M")
+                            pre_video_start = isha_dt - timedelta(minutes=RAMADAN_ISHA_PRE_ADHAN_VIDEO_MIN)
+                            if pre_video_start <= now < start_dt:
+                                return {
+                                    "type": "pre_adhan_video",
+                                    "prayer": "isha",
+                                    "description": f"Video pre-Adhan Isha ({pre_video_start.strftime('%H:%M')} -> {start_str})",
+                                    "video_start": pre_video_start.strftime("%H:%M"),
+                                    "video_end": start_str
+                                }
                         if start_dt <= now <= end_dt:
                             return {
                                 "type": "tarawih",
@@ -1380,17 +1400,45 @@ class MultiDeviceController:
             logging.error(f"Error in get_prayer_info: {e}")
             return None
 
+    def _get_display_override(self, ip: str):
+        """Lit le mode forcé (WebUI) pour une box. Retourne 'ONVIF'/'MAWAQIT'/'VLC' ou None."""
+        try:
+            if not os.path.exists(DISPLAY_OVERRIDE_FILE):
+                return None
+            with open(DISPLAY_OVERRIDE_FILE, "r") as f:
+                overrides = json.load(f)
+            return overrides.get(ip)  # None si absent ou null
+        except Exception:
+            return None
+
     def update_device(self, device: DeviceConfig) -> bool:
         """
         Update device display based on source availability.
 
         Logic:
+        -1. DISPLAY OVERRIDE (WebUI switch) ? -> Force le mode choisi
         0. PLAY ORDER active? -> Force video (manual override, 30 min)
         1. HTTP available? -> Use HTTP (ABSOLUTE PRIORITY)
         2. HTTP DOWN + In prayer time? -> ONVIF or post-prayer video
         3. Fallback -> VIDEO LOOP if box in VIDEO_LOOP_BOXES, else MAWAQIT
         """
         try:
+            # ====== RULE -1: DISPLAY OVERRIDE (WebUI) ======
+            override = self._get_display_override(device.ip)
+            if override == "ONVIF":
+                if self.onvif_available:
+                    logging.info(f"[OVERRIDE] Forcing ONVIF on {device.name}")
+                    return self.stream_manager.play_onvif(device)
+                else:
+                    logging.info(f"[OVERRIDE] ONVIF forced but unavailable on {device.name} -> Mawaqit")
+                    return self.stream_manager.play_mawaqit(device)
+            elif override == "MAWAQIT":
+                logging.info(f"[OVERRIDE] Forcing Mawaqit on {device.name}")
+                return self.stream_manager.play_mawaqit(device)
+            elif override == "VLC":
+                logging.info(f"[OVERRIDE] Forcing VLC on {device.name}")
+                return self.stream_manager.play_post_prayer_video(device)
+
             # ====== RULE 0: PLAY ORDER MANUAL OVERRIDE ======
             if self._play_order_active:
                 elapsed_min = (time.time() - self._play_order_start_time) / 60
@@ -1407,8 +1455,8 @@ class MultiDeviceController:
                 prayer_type = prayer_info.get("type")
                 description = prayer_info.get("description", "")
 
-                if prayer_type == "post_prayer_video":
-                    logging.info(f"[VIDEO] Post-prayer video: {description} on {device.name}")
+                if prayer_type in ("post_prayer_video", "pre_adhan_video"):
+                    logging.info(f"[VIDEO] {description} on {device.name}")
                     return self.stream_manager.play_post_prayer_video(device)
 
                 prayer_types_with_onvif = ["tahajuud", "fajr", "iqama", "jumuaa", "tarawih"]
@@ -1696,6 +1744,7 @@ class MultiDeviceController:
                         if self._should_scheduled_restart():
                             logging.info("Scheduled weekly restart time reached (Sunday 1 AM)")
                             logging.info("Performing clean restart for maintenance...")
+                            self._scheduled_restart = True
                             break
                         last_restart_check = time.time()
 
@@ -2004,7 +2053,10 @@ def main():
 
         # Normal exit (should not reach here unless stopped by signal)
         remove_pid_file()
-        sys.exit(0)  # Exit code 0: clean exit
+        if controller and controller._scheduled_restart:
+            logging.info("Scheduled restart: exiting with code 3 so supervisor can restart")
+            sys.exit(3)  # Exit code 3: supervisor must restart immediately
+        sys.exit(0)  # Exit code 0: clean exit (SIGTERM/SIGINT)
 
     except KeyboardInterrupt:
         logging.info("Keyboard interrupt received")

@@ -41,3 +41,5 @@ id_rsa
 Controller/AUTO_StreamACMS/media/video.mp4
 Controller/AUTO_StreamACMS/media/aaa.jpeg
 Controller/AUTO_StreamACMS/check_video.py
+
+webui/.secret_key

@@ -284,6 +284,11 @@ main_loop() {
         elif [[ ${exit_code} -eq 2 ]]; then
             log_warn "Another instance detected (exit code 2)"
             return 2
+        elif [[ ${exit_code} -eq 3 ]]; then
+            log_info "Scheduled restart requested (exit code 3) - restarting immediately..."
+            consecutive_failures=0
+            sleep "${RESTART_DELAY}"
+            continue
         elif [[ ${exit_code} -eq 124 ]]; then
             log_error "Process timeout/killed (exit code 124)"
             consecutive_failures=$((consecutive_failures + 1))

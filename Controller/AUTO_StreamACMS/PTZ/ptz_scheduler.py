@@ -136,11 +136,13 @@ class PTZScheduler:
                     
                 time_str = self._extract_time(prayer_times.get(prayer_key))
                 if time_str:
-                    # Maghrib during Ramadan: 2 min after Adhan ; all other cases: 10 min
+                    # Maghrib during Ramadan: 2 min after Adhan ; all other cases: from Mawaqit iqamaCalendar
                     if is_ramadan and prayer_key == "maghrib":
                         offset = self.config.get("ramadan_maghrib_offset", 2)
                     else:
-                        offset = self.config.get("iqama_offset", 10)
+                        _prayer = prayer_times.get(prayer_key)
+                        _raw_offset = _prayer.get("iqama_offset", 10) if isinstance(_prayer, dict) else 10
+                        offset = _raw_offset if _raw_offset > 0 else 2  # iqama=0: add 2min for adhan duration
                     iqama_time = self._add_minutes(time_str, offset)
                     
                     # RAMADAN: Add Tahajuud event for Fajr (1 hour before)
@@ -164,7 +166,8 @@ class PTZScheduler:
                         onvif_duration = self.config.get("ramadan_maghrib_duration", 7)
                         post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
-                        onvif_duration = 10
+                        _prayer = prayer_times.get(prayer_key)
+                        onvif_duration = _prayer.get("dua_duration", 10) if isinstance(_prayer, dict) else 10
                         post_video_delay = 1  # 1 min default delay
 
                     events.append({
@@ -204,13 +207,14 @@ class PTZScheduler:
                     "start_time": block_start,
                     "end_time": block_end,
                     "time": block_start,
-                    "position": 3,
-                    "description": f"Jumuaa pos3 ({block_start} -> {block_end})"
+                    "position": 7,
+                    "description": f"Jumuaa pos7 ({block_start} -> {block_end})"
                 })
         
         # Other Friday prayers (Asr, Maghrib, Isha)
         if datetime.now().weekday() == 4:
             other_prayers = {
+                "fajr": ("Fajr", 2),
                 "asr": ("Asr", 2),
                 "maghrib": ("Maghrib", 2),
                 "isha": ("Isha", 2)
@@ -225,8 +229,10 @@ class PTZScheduler:
                         onvif_duration = self.config.get("ramadan_maghrib_duration", 7)
                         post_video_delay = self.config.get("ramadan_maghrib_video_delay", 0)
                     else:
-                        offset = self.config.get("iqama_offset", 10)
-                        onvif_duration = 10
+                        _prayer = prayer_times.get(prayer_key)
+                        _raw_offset = _prayer.get("iqama_offset", 10) if isinstance(_prayer, dict) else 10
+                        offset = _raw_offset if _raw_offset > 0 else 2  # iqama=0: add 2min for adhan duration
+                        onvif_duration = _prayer.get("dua_duration", 10) if isinstance(_prayer, dict) else 10
                         post_video_delay = 1
                     iqama_time = self._add_minutes(time_str, offset)
                     events.append({
@@ -244,7 +250,10 @@ class PTZScheduler:
         if is_ramadan:
             isha_time = self._extract_time(prayer_times.get("isha"))
             if isha_time:
-                iqama_isha = self._add_minutes(isha_time, self.config.get("iqama_offset", 10))
+                _isha = prayer_times.get("isha")
+                _isha_raw_offset = _isha.get("iqama_offset", 10) if isinstance(_isha, dict) else 10
+                _isha_offset = _isha_raw_offset if _isha_raw_offset > 0 else 2  # iqama=0: add 2min for adhan duration
+                iqama_isha = self._add_minutes(isha_time, _isha_offset)
                 tarawih_end = self._add_minutes(iqama_isha, 150)  # Iqama Isha + 150 min
                 events.append({
                     "type": "tarawih",
