@@ -265,9 +265,9 @@ DASHBOARD_HTML = """
     </button>
   </div>
 
-  <!-- ── CAMÉRA LIVE FORCÉE ── -->
+  <!-- ── CAMÉRA FORCÉE ── -->
   <div class="card">
-    <h2>📡 Caméra live forcée (30 min — toutes les boxes)</h2>
+    <h2>📡 Caméra forcée (30 min — toutes les boxes)</h2>
     <div class="play-order-status {% if onvif_force_active %}active{% endif %}" id="onvif-force-status">
       📹 Caméra live en cours sur toutes les boxes…
     </div>
