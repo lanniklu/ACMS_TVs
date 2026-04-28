@@ -5,6 +5,7 @@ After=network.target
 [Service]
 User=acms_tech
 WorkingDirectory=/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/webui
+EnvironmentFile=/home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/.env
 ExecStart=python3 /home/acms_tech/ACMS_TVs/Controller/AUTO_StreamACMS/webui/server.py
 Restart=always
 RestartSec=5
