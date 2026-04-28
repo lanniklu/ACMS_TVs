@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 ACMS WebUI - Interface web d'administration
-Port 8888 - Accès local réseau uniquement
+Port 5050 - Accès local réseau uniquement
 
 Fonctions :
   - Upload de la vidéo post-prière
   - Contrôle des presets caméra PTZ
   - Déclenchement manuel de la vidéo (play_order)
 
-Accès : http://10.1.5.10:8888
+Accès : http://acms.tv:5050
 """
 
 import os
@@ -38,7 +38,7 @@ from ptz_config import PTZ_CONFIG
 from ptz_controller import PTZController
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-PORT         = 80
+PORT         = 5050
 MAX_VIDEO_MB = 500
 
 # Utilisateurs : code personnel → prénom affiché dans les logs
