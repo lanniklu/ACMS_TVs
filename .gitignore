@@ -47,3 +47,4 @@ Controller/AUTO_StreamACMS/media/aaa.jpeg
 Controller/AUTO_StreamACMS/media/display_override.json
 Controller/AUTO_StreamACMS/media/play_order.txt
 Controller/AUTO_StreamACMS/check_video.py
+Controller/AUTO_StreamACMS/media/boxes_status.json
