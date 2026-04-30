@@ -49,7 +49,6 @@ MAX_VIDEO_MB = 500
 # Chaque utilisateur a un code à 4 chiffres unique
 USERS = {
     "9393": "Hanni",
-    "2524": "Younes",
     "3333": "Ziad",
     "0101": "Benachir",
     "0213": "Kamel",
