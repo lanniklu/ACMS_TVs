@@ -1,6 +1,7 @@
 # Secrets (never commit)
 .env
 webui/.secret_key
+Controller/AUTO_StreamACMS/webui/.secret_key
 
 # Python
 __pycache__/
@@ -14,12 +15,11 @@ build/
 .eggs/
 
 # Logs (runtime, not source)
-Controller/FINAL_dev/AUTO_StreamACMS/logs/*.log
-Controller/FINAL_dev/AUTO_StreamACMS/logs/*.pid
-Controller/FINAL_dev/AUTO_StreamACMS/logs/mawaqit_heartbeat.txt
+Controller/AUTO_StreamACMS/logs/
 
 # Schedules (generated at runtime, kept by cache feature)
-# Do NOT ignore prayer_times_*.json and ptz_schedule_*.json - they are the offline cache
+Controller/AUTO_StreamACMS/schedules/prayer_times_*.json
+Controller/AUTO_StreamACMS/schedules/ptz_schedule_*.json
 
 # Large binaries (ROMs, backups, APKs) - trop lourds pour GitHub (>100MB)
 *.img
@@ -44,6 +44,6 @@ desktop.ini
 id_rsa
 Controller/AUTO_StreamACMS/media/video.mp4
 Controller/AUTO_StreamACMS/media/aaa.jpeg
+Controller/AUTO_StreamACMS/media/display_override.json
+Controller/AUTO_StreamACMS/media/play_order.txt
 Controller/AUTO_StreamACMS/check_video.py
-
-webui/.secret_key
