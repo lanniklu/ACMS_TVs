@@ -25,6 +25,7 @@ from flask import (
     render_template_string, flash, jsonify
 )
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # ── Chemins ──────────────────────────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,6 +88,8 @@ _VALID_IP_RANGE = {f"10.1.2.{i}" for i in range(101, 121)}
 ALLOWED_EXTENSIONS = {"mp4"}
 
 app = Flask(__name__)
+# Trust nginx reverse-proxy headers so logs keep the real client IP.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1)
 app.config["MAX_CONTENT_LENGTH"] = MAX_VIDEO_MB * 1024 * 1024
 
 # Persistent secret key: survive restarts without logging out users
@@ -820,4 +823,4 @@ def log_http_access(response):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # Écoute uniquement sur le réseau local (pas exposé sur internet)
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    app.run(host="127.0.0.1", port=PORT, debug=False)
