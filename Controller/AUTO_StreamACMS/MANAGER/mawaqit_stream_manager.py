@@ -15,6 +15,7 @@ ACMS Configuration:
 import subprocess
 import time
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import socket
 import re
 import json
@@ -218,7 +219,9 @@ def setup_logging():
     logger.setLevel(LOG_LEVEL)
 
     # File handler
-    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler = TimedRotatingFileHandler(
+        LOG_FILE, when='midnight', backupCount=3, encoding='utf-8'
+    )
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(
         '%(asctime)s [%(levelname)s] [%(funcName)s] %(message)s',

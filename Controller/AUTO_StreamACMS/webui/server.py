@@ -17,6 +17,7 @@ import json
 import hashlib
 import secrets
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import datetime
 from functools import wraps
 from flask import (
@@ -56,7 +57,8 @@ USERS = {
     "7777": "Ahmed",
 }
 
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs", "webui_actions.log")
+LOG_FILE      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs", "webui_actions.log")
+HTTP_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs", "http_access.log")
 
 # Boxes Android TV (IP → nom affiché)
 # KNOWN_NAMES : noms lisibles pour les IPs connues. Utilisé quand boxes_status.json est absent.
@@ -776,6 +778,43 @@ def onvif_force_toggle():
         return jsonify({"active": not active})
     except Exception as e:
         return jsonify({"active": active, "error": str(e)}), 500
+
+
+# ── Logging HTTP access ───────────────────────────────────────────────────────
+# Écrit chaque requête HTTP dans http_access.log avec le nom d'utilisateur connecté.
+# Les polling fréquents (/api/boxes) sont exclus pour éviter le bruit.
+_http_logger_instance = None
+
+def _get_http_logger():
+    global _http_logger_instance
+    if _http_logger_instance is None:
+        os.makedirs(os.path.dirname(os.path.abspath(HTTP_LOG_FILE)), exist_ok=True)
+        handler = TimedRotatingFileHandler(
+            HTTP_LOG_FILE, when='midnight', backupCount=3, encoding='utf-8'
+        )
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger = logging.getLogger("acms.http")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+        _http_logger_instance = logger
+    return _http_logger_instance
+
+# Chemins à ne pas journaliser (polling automatique JS)
+_HTTP_LOG_SKIP = {"/api/boxes", "/favicon.ico"}
+
+@app.after_request
+def log_http_access(response):
+    if request.path not in _HTTP_LOG_SKIP:
+        try:
+            who = session.get("username", "-") if session.get("authenticated") else "anonymous"
+            ip  = request.remote_addr or "-"
+            ts  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            entry = f"{ts} | {who} | {ip} | {request.method} {request.path} | {response.status_code}"
+            _get_http_logger().info(entry)
+        except Exception:
+            pass
+    return response
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
