@@ -65,18 +65,33 @@ HTTP_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "
 KNOWN_NAMES = {
     "10.1.2.101": "RDC AVANT",
     "10.1.2.103": "RDC MILIEU",
-    "10.1.2.104": "ECRAN GEANT",
-    "10.1.2.105": "Box 105",
-    "10.1.2.106": "Box 106",
-    "10.1.2.107": "Box 107",
-    "10.1.2.109": "Box 109",
-    "10.1.2.110": "Box 110",
-    "10.1.2.111": "Box 111",
-    "10.1.2.112": "Box 112",
+  "10.1.2.111": "RDC ARRIERE",
+  "10.1.2.115": "1er Petite Salle",
+  "10.1.2.105": "2e Petite Salle",
+  "10.1.2.107": "2e Moyen  Salle",
+  "10.1.2.106": "2e Grande Salle",
+  "10.1.2.109": "Chapiteau",
+  "10.1.2.110": "Tawsi3a 1",
+  "10.1.2.112": "Tawsi3a 2",
+  "10.1.2.104": "ECRAN GEANT",
     "10.1.2.113": "Box 113",
     "10.1.2.114": "Box 114",
-    "10.1.2.115": "Box 115",
 }
+
+# Ordre d'affichage prioritaire demandé pour la WebUI.
+BOX_DISPLAY_ORDER = [
+  "10.1.2.101",
+  "10.1.2.103",
+  "10.1.2.111",
+  "10.1.2.115",
+  "10.1.2.105",
+  "10.1.2.107",
+  "10.1.2.106",
+  "10.1.2.109",
+  "10.1.2.110",
+  "10.1.2.112",
+]
+_BOX_ORDER_INDEX = {ip: idx for idx, ip in enumerate(BOX_DISPLAY_ORDER)}
 
 # Liste statique complète (fallback si boxes_status.json absent)
 BOXES = [{"ip": ip, "name": name} for ip, name in KNOWN_NAMES.items()]
@@ -613,10 +628,11 @@ def get_active_boxes():
             name = KNOWN_NAMES.get(ip) or b.get("name") or ip
             boxes.append({"ip": ip, "name": name})
         if boxes:
+          boxes.sort(key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))
             return boxes
     except Exception:
         pass
-    return BOXES  # fallback
+      return sorted(BOXES, key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))  # fallback
 
 
 def is_play_order_active():
