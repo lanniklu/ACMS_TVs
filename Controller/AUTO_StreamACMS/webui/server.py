@@ -628,11 +628,11 @@ def get_active_boxes():
             name = KNOWN_NAMES.get(ip) or b.get("name") or ip
             boxes.append({"ip": ip, "name": name})
         if boxes:
-          boxes.sort(key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))
+            boxes.sort(key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))
             return boxes
     except Exception:
         pass
-      return sorted(BOXES, key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))  # fallback
+    return sorted(BOXES, key=lambda b: (_BOX_ORDER_INDEX.get(b["ip"], 10_000), b["ip"]))  # fallback
 
 
 def is_play_order_active():
