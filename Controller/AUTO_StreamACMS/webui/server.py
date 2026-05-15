@@ -53,7 +53,7 @@ USERS = {
     "0101": "Benachir",
     "0213": "Kamel",
     "0212": "Karim",
-    "2500": "Hcen",
+    "2500": "Issam",
     "7777": "Ahmed",
 }
 
@@ -64,32 +64,32 @@ HTTP_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "
 # KNOWN_NAMES : noms lisibles pour les IPs connues. Utilisé quand boxes_status.json est absent.
 KNOWN_NAMES = {
     "10.1.2.101": "RDC AVANT",
-    "10.1.2.103": "RDC MILIEU",
-  "10.1.2.111": "RDC ARRIERE",
-  "10.1.2.115": "1er Petite Salle",
-  "10.1.2.105": "2e Petite Salle",
-  "10.1.2.107": "2e Moyen  Salle",
-  "10.1.2.106": "2e Grande Salle",
-  "10.1.2.109": "Chapiteau",
-  "10.1.2.110": "Tawsi3a 1",
-  "10.1.2.112": "Tawsi3a 2",
-  "10.1.2.104": "ECRAN GEANT",
+    "10.1.2.106": "RDC MILIEU",
+    "10.1.2.111": "RDC ARRIERE",
+    "10.1.2.115": "1er Petite Salle",
+    "10.1.2.105": "2e Petite Salle",
+    "10.1.2.107": "2e Moyen  Salle",
+    "10.1.2.103": "2e Grande Salle",
+    "10.1.2.109": "Chapiteau",
+    "10.1.2.110": "Tawsi3a 1",
+    "10.1.2.112": "Tawsi3a 2",
+    "10.1.2.104": "ECRAN GEANT",
     "10.1.2.113": "Box 113",
     "10.1.2.114": "Box 114",
 }
 
 # Ordre d'affichage prioritaire demandé pour la WebUI.
 BOX_DISPLAY_ORDER = [
-  "10.1.2.101",
-  "10.1.2.103",
-  "10.1.2.111",
-  "10.1.2.115",
-  "10.1.2.105",
-  "10.1.2.107",
-  "10.1.2.106",
-  "10.1.2.109",
-  "10.1.2.110",
-  "10.1.2.112",
+    "10.1.2.101",
+    "10.1.2.106",
+    "10.1.2.111",
+    "10.1.2.115",
+    "10.1.2.105",
+    "10.1.2.107",
+    "10.1.2.103",
+    "10.1.2.109",
+    "10.1.2.110",
+    "10.1.2.112",
 ]
 _BOX_ORDER_INDEX = {ip: idx for idx, ip in enumerate(BOX_DISPLAY_ORDER)}
 
