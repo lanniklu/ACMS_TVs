@@ -142,7 +142,7 @@ DISPLAY_OVERRIDE_FILE = os.path.join(_BASE_DIR, "media", "display_override.json"
 VIDEO_LOOP_BOXES = ["10.1.2.104"]
 
 # Boxes that must NEVER use ONVIF (will fallback to Mawaqit or video-loop instead)
-ONVIF_EXCLUDED_BOXES = ["10.1.2.103"]
+ONVIF_EXCLUDED_BOXES = ["10.1.2.106"]
 
 # Boxes that use ONVIF ONLY for Tarawih/Jumuaa, video loop for all other prayers
 VIDEO_LOOP_EXCEPT_TARAWIH_JUMUAA_BOXES = ["10.1.2.104"]
